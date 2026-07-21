@@ -115,8 +115,12 @@ as a diff. **RESET MEMORY** wipes all four channels so you can watch it learn fr
 **ROSTER** — guards and robots as learned assets. Every number was learned; the
 simulator's hidden parameters are stripped server-side before the snapshot ships.
 
-Keyboard: `1–4` views · `space` play/pause · `j`/`k` queue · `a` confirm ·
-`o` override · `t` theme · `?` help.
+**The console is built for the person on shift**, so it opens with the decision
+in plain words and the two buttons that matter, and keeps the technical surfaces
+— the raw ingest feed and the tool-call trace — complete but one keystroke away.
+Everything runs from the keyboard: `↑`/`↓` move the queue, `⏎` confirms, `o`
+overrides, `e` shows Sentry's working, `f` shows the raw feed, `1–4` switch view,
+`space` plays/pauses, `t` toggles theme, `?` lists the lot.
 
 ### Things worth trying
 
@@ -171,8 +175,17 @@ inherited). Total dependency list: the Anthropic SDK, Express, React, Vite.
 ```
 npm run typecheck      →  0 errors
 node scripts/smoke.mjs →  45/45 checks, including ground-truth containment
-npm run eval           →  learned arm beats static on the composite
+npm run verify         →  typecheck + the learning claim asserted across 3 seeds
 ```
+
+`npm run verify` is the one to run. It exits non-zero if the learned arm fails to
+beat static on **seeds 42, 7 and 20260721** — and the same seed now gives the
+same number to the digit, which it did not before ([why that took a fix](docs/METRICS.md#reproducing)).
+
+The learning claim is deliberately *not* asserted by the smoke test: a console
+eval trains its learned arm from live memory a few minutes old, over 120 events,
+where beating a static table is a coin flip. Asserting it there would be a test
+that fails for reasons unrelated to the code.
 
 ---
 

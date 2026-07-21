@@ -79,7 +79,7 @@ export class OpsEngine {
   constructor(seed: number) {
     this.seed = seed;
     this.sim = new WorldSimulator(seed);
-    this.memory = createMemory(this.sim.world, this.sim.now());
+    this.memory = createMemory(this.sim.world, this.sim.now(), seed);
     this.agent = createAgent();
   }
 
@@ -130,7 +130,7 @@ export class OpsEngine {
     this.pause();
     this.seed = seed;
     this.sim = new WorldSimulator(seed);
-    this.memory = createMemory(this.sim.world, this.sim.now());
+    this.memory = createMemory(this.sim.world, this.sim.now(), seed);
     this.incidents.clear();
     this.order = [];
     this.feed = [];

@@ -165,10 +165,35 @@
 }
 
 .chart-seq-strip { display: flex; }
+.chart-seq-strip > i { width: 22px; height: 8px; display: block; }
 
+/* Key + label pair. The sized box is the swatch itself, not the whole item —
+   sizing the item collapsed the two labels onto one another. */
 .chart-seq-swatch {
-  width: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: var(--s2);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: var(--tracking-micro);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.chart-seq-swatch > i {
+  width: 14px;
   height: 8px;
+  flex: none;
+  display: block;
+  border: var(--hair) solid var(--line-strong);
+}
+
+.chart-seq-swatch--hatch > i {
+  background:
+    repeating-linear-gradient(45deg,
+      var(--line-strong) 0 1px,
+      transparent 1px 4px);
 }
 
 .chart-seq-ends {

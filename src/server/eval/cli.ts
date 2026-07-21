@@ -96,6 +96,14 @@ async function main(): Promise<void> {
   console.log(`${B}METHODOLOGY${R}`);
   for (const line of run.notes.split('\n')) console.log(`  ${DIM}${line}${R}`);
   console.log('');
+
+  // `--assert` turns the run into a regression gate. Off by default, because a
+  // single seed is a data point and exiting non-zero on one would encourage
+  // seed-shopping; on, it is what `npm run verify` uses across several seeds.
+  if (process.argv.includes('--assert') && l <= s) {
+    console.error(`${RED}${B}ASSERTION FAILED${R} — learned (${l.toFixed(1)}) did not beat static (${s.toFixed(1)}).\n`);
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {

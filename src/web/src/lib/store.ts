@@ -25,6 +25,24 @@ import { EMPTY_METRICS } from '../../../shared/types';
 export type Theme = 'light' | 'dark';
 export type ToastLevel = 'info' | 'warn' | 'error';
 
+/** Which slice of the queue the operator is working. */
+export type QueueFilter = 'needs' | 'open' | 'all';
+
+/**
+ * Console preferences. These exist because the two audiences want different
+ * densities out of the same screen: an ops manager wants the decision and the
+ * two buttons, an engineer wants the raw ingest and the tool calls. Rather than
+ * average the two into something neither likes, both are one keystroke away and
+ * the choice persists.
+ */
+export interface UiPrefs {
+  /** The raw event feed column. Off by default — it is context, not work. */
+  ingestOpen: boolean;
+  /** The tool-call / trace inspector. Off by default — it is the technical view. */
+  workOpen: boolean;
+  queueFilter: QueueFilter;
+}
+
 export interface Toast {
   id: string;
   level: ToastLevel;
@@ -43,6 +61,13 @@ export interface StoreState {
   ready: boolean;
   /** Last transport error, cleared by the next successful load. */
   error: string | null;
+  ui: UiPrefs;
+  /**
+   * The incident ids the queue is *currently showing*, in display order.
+   * Published by the view so `j`/`k` walk what the operator can see rather than
+   * the raw arrival order — the two diverge the moment a filter or sort applies.
+   */
+  queueIds: readonly string[];
 }
 
 /** The live feed is a tail, not a log; the server owns the archive. */
@@ -50,6 +75,15 @@ const FEED_CAP = 200;
 const TOAST_CAP = 5;
 const TOAST_TTL_MS = 5200;
 const THEME_KEY = 'sentry.theme';
+const UI_KEY = 'sentry.ui';
+
+/**
+ * Opens on `open`, not `needs`. A console whose first frame can legitimately be
+ * empty teaches the operator it might be broken; "everything live" always has
+ * something in it, and the Needs-you count sits right beside it.
+ */
+const DEFAULT_UI: UiPrefs = { ingestOpen: false, workOpen: false, queueFilter: 'open' };
+const NO_IDS: readonly string[] = [];
 
 // Stable fallbacks so selectors never allocate on the null-snapshot path.
 const NO_INCIDENTS: readonly Incident[] = [];
@@ -81,6 +115,8 @@ let state: StoreState = {
   theme: initialTheme(),
   ready: false,
   error: null,
+  ui: initialUi(),
+  queueIds: NO_IDS,
 };
 
 const listeners = new Set<() => void>();
@@ -353,6 +389,61 @@ if (typeof matchMedia === 'function') {
     const theme: Theme = ev.matches ? 'dark' : 'light';
     if (state.theme !== theme) setState({ theme });
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  UI PREFERENCES
+// ─────────────────────────────────────────────────────────────────────────────
+
+function initialUi(): UiPrefs {
+  try {
+    const raw = localStorage.getItem(UI_KEY);
+    if (!raw) return DEFAULT_UI;
+    const p = JSON.parse(raw) as Partial<UiPrefs>;
+    return {
+      ingestOpen: typeof p.ingestOpen === 'boolean' ? p.ingestOpen : DEFAULT_UI.ingestOpen,
+      workOpen: typeof p.workOpen === 'boolean' ? p.workOpen : DEFAULT_UI.workOpen,
+      queueFilter:
+        p.queueFilter === 'needs' || p.queueFilter === 'open' || p.queueFilter === 'all'
+          ? p.queueFilter
+          : DEFAULT_UI.queueFilter,
+    };
+  } catch {
+    // Corrupt or unavailable storage must never cost the operator the console.
+    return DEFAULT_UI;
+  }
+}
+
+export function setUi(patch: Partial<UiPrefs>): void {
+  const ui = { ...state.ui, ...patch };
+  if (ui.ingestOpen === state.ui.ingestOpen
+    && ui.workOpen === state.ui.workOpen
+    && ui.queueFilter === state.ui.queueFilter) return;
+  setState({ ui });
+  try {
+    localStorage.setItem(UI_KEY, JSON.stringify(ui));
+  } catch {
+    /* private mode — the preference just won't survive a reload */
+  }
+}
+
+export function toggleUi(key: 'ingestOpen' | 'workOpen'): void {
+  setUi({ [key]: !state.ui[key] } as Partial<UiPrefs>);
+}
+
+export function useUi(): UiPrefs {
+  return useSelector((s) => s.ui);
+}
+
+/** Called by the queue view whenever its visible ordering changes. */
+export function setQueueIds(ids: readonly string[]): void {
+  const cur = state.queueIds;
+  if (cur.length === ids.length && cur.every((id, i) => id === ids[i])) return;
+  setState({ queueIds: ids });
+}
+
+export function useQueueIds(): readonly string[] {
+  return useSelector((s) => s.queueIds);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

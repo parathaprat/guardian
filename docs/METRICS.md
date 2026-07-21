@@ -137,6 +137,16 @@ npm run eval -- --seed 42 --events 400
 npm run eval -- --seed 7  --events 900
 ```
 
+**The same seed gives the same numbers, to the digit.** That is a property worth
+stating because it did not hold for free. The responder channel uses Thompson
+sampling, and its sampler originally fell back to `Math.random()` — so the
+*static* arm was bit-stable while the two arms actually under test drifted by a
+few tenths between runs. Nondeterminism in the thing you are measuring, but not
+in your control, is the worst possible arrangement: it makes a real regression
+and a rerun indistinguishable. `createMemory` now takes the seed and forks a
+dedicated stream for responder draws, so reruns are exact and the fork can never
+perturb the world's own stream.
+
 The CLI prints all three arms side by side with the per-metric delta and the full
 methodology block, so the result can be pasted into a review without trusting a
 screenshot.

@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, ReactNode, Ref } from 'react';
 import type { Priority, ResolutionOutcome, ResponderStatus } from '../../../shared/types';
 import { dismissToast, useToasts } from '../lib/store';
 import './ui.css';
@@ -93,9 +93,11 @@ export function ResponderStatusDot({ status }: { status: ResponderStatus }) {
 
 // ── surfaces ──────────────────────────────────────────────────────────────
 
-export function Panel({ eyebrow, title, actions, children, className, bodyClassName, scroll }: {
+export function Panel({ eyebrow, title, actions, children, className, bodyClassName, scroll, bodyRef }: {
   eyebrow?: ReactNode; title?: ReactNode; actions?: ReactNode; children?: ReactNode;
   className?: string; bodyClassName?: string; scroll?: boolean;
+  /** For panes that must measure themselves — the site map sizes to its box. */
+  bodyRef?: Ref<HTMLDivElement>;
 }) {
   return (
     <section className={cx('panel', 'ui-panel', className)}>
@@ -108,7 +110,7 @@ export function Panel({ eyebrow, title, actions, children, className, bodyClassN
           {actions && <div className="row gap2">{actions}</div>}
         </header>
       )}
-      <div className={cx('panel-body', scroll && 'scroll', bodyClassName)}>{children}</div>
+      <div ref={bodyRef} className={cx('panel-body', scroll && 'scroll', bodyClassName)}>{children}</div>
     </section>
   );
 }

@@ -11,8 +11,8 @@ import Header, { VIEWS, type ConnectionState, type ViewId } from './components/H
 import { Kbd, Toasts } from './components/ui';
 import { api } from './lib/api';
 import {
-  select, toggleTheme, useConnection, useControls, useIncidents, useLiveStore,
-  useReady, useSelection, useSnapshot, useTheme,
+  select, toggleTheme, toggleUi, useConnection, useControls, useLiveStore,
+  useQueueIds, useReady, useSelection, useSnapshot, useTheme,
 } from './lib/store';
 import Dispatch from './views/Dispatch';
 import Memory from './views/Memory';
@@ -25,14 +25,36 @@ function readHash(): ViewId {
   return (VIEWS as string[]).includes(raw) ? (raw as ViewId) : 'dispatch';
 }
 
-const SHORTCUTS: Array<[string, string]> = [
-  ['1 – 4', 'Switch view'],
-  ['Space', 'Play / pause the stream'],
-  ['J / K', 'Move through the incident queue'],
-  ['A', 'Confirm the selected decision'],
-  ['O', 'Override the selected decision'],
-  ['T', 'Toggle light / dark'],
-  ['?', 'This panel'],
+/**
+ * Grouped by what the operator is doing, not alphabetically. The first group is
+ * the shift-work loop — those four keys run the console without a mouse.
+ */
+const SHORTCUT_GROUPS: Array<{ title: string; keys: Array<[string, string]> }> = [
+  {
+    title: 'Working the queue',
+    keys: [
+      ['↓ / J', 'Next incident'],
+      ['↑ / K', 'Previous incident'],
+      ['⏎', 'Looks right — confirm the call'],
+      ['O', 'Change it — override the call'],
+    ],
+  },
+  {
+    title: 'Seeing more',
+    keys: [
+      ['E', "Show / hide Sentry's working"],
+      ['F', 'Show / hide the raw alarm feed'],
+      ['1 – 4', 'Dispatch · Memory · Evals · Roster'],
+    ],
+  },
+  {
+    title: 'The world',
+    keys: [
+      ['Space', 'Play / pause the stream'],
+      ['T', 'Light / dark'],
+      ['? or Esc', 'Open / close this panel'],
+    ],
+  },
 ];
 
 export default function App() {
@@ -41,7 +63,7 @@ export default function App() {
   const snapshot = useSnapshot();
   const ready = useReady();
   const controls = useControls();
-  const incidents = useIncidents();
+  const queueIds = useQueueIds();
   const selected = useSelection();
   const connection = useConnection();
   const theme = useTheme();
@@ -92,6 +114,14 @@ export default function App() {
         case 't':
           toggleTheme();
           break;
+        case 'e':
+          if (view !== 'dispatch') return;
+          toggleUi('workOpen');
+          break;
+        case 'f':
+          if (view !== 'dispatch') return;
+          toggleUi('ingestOpen');
+          break;
         case '?':
         case '/':
           e.preventDefault();
@@ -100,22 +130,26 @@ export default function App() {
         case 'escape':
           setHelp(false);
           break;
+        // Arrows alias j/k so nobody has to know vi to work a shift.
         case 'j':
-        case 'k': {
-          if (view !== 'dispatch') return;
+        case 'k':
+        case 'arrowdown':
+        case 'arrowup': {
+          if (view !== 'dispatch' || queueIds.length === 0) return;
           e.preventDefault();
-          const ids = incidents.map((i) => i.id);
-          if (ids.length === 0) return;
-          const at = selected ? ids.indexOf(selected) : -1;
-          const step = e.key.toLowerCase() === 'j' ? 1 : -1;
-          const next = at === -1 ? 0 : Math.max(0, Math.min(ids.length - 1, at + step));
-          select(ids[next]!);
+          const down = e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown';
+          const at = selected ? queueIds.indexOf(selected) : -1;
+          const next = at === -1 ? 0 : Math.max(0, Math.min(queueIds.length - 1, at + (down ? 1 : -1)));
+          select(queueIds[next]!);
           break;
         }
+        // Enter is the confirm key; `a` stays as a muscle-memory alias.
+        case 'enter':
         case 'a': {
           if (view !== 'dispatch' || !selected) return;
           e.preventDefault();
-          void api.feedback(selected, { verdict: 'confirm', operator: 'console' }).catch(() => undefined);
+          void api.feedback(selected, { verdict: 'confirm', operator: 'console' })
+            .catch(() => undefined);
           break;
         }
         case 'o': {
@@ -130,7 +164,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [controls?.running, go, incidents, selected, setRunning, view]);
+  }, [controls?.running, go, queueIds, selected, setRunning, view]);
 
   const body = useMemo(() => {
     switch (view) {
@@ -171,17 +205,26 @@ export default function App() {
         <div className="help-scrim" onClick={() => setHelp(false)} role="presentation">
           <div className="help-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Keyboard shortcuts">
             <div className="panel-head">
-              <span className="label">Keyboard</span>
+              <div className="ui-panel-titles">
+                <span className="label">Keyboard</span>
+                <div className="ui-panel-title">Run it without a mouse</div>
+              </div>
               <button type="button" className="btn btn--ghost btn--sm" onClick={() => setHelp(false)}>Close</button>
             </div>
-            <div className="panel-body">
-              <table className="tbl help-tbl">
-                <tbody>
-                  {SHORTCUTS.map(([k, d]) => (
-                    <tr key={k}><td><Kbd>{k}</Kbd></td><td className="dim">{d}</td></tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="help-body">
+              {SHORTCUT_GROUPS.map((group) => (
+                <section key={group.title} className="help-group">
+                  <span className="label">{group.title}</span>
+                  <dl className="help-list">
+                    {group.keys.map(([k, d]) => (
+                      <div className="help-row" key={k}>
+                        <dt><Kbd>{k}</Kbd></dt>
+                        <dd>{d}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ))}
             </div>
           </div>
         </div>

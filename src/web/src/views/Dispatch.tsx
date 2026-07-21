@@ -1,26 +1,39 @@
 /**
  * DISPATCH — the live console.
  *
- * Three columns: raw ingest, the prioritised queue, and the agent's reasoning.
- * The reasoning column is the widest on purpose; the whole product claim is that
- * you can see *why*, not just *what*.
+ * Designed around one question the person on shift is actually asking:
+ * *what needs me right now, and can I trust what Sentry did?*
+ *
+ * Everything follows from that. The queue defaults to the slice that needs a
+ * human. The reasoning column leads with the decision in plain words and keeps
+ * Confirm / Override permanently in reach. The two technical surfaces — the raw
+ * ingest feed and the tool-call trace — are real, complete, and *collapsed by
+ * default*, because they are how an engineer audits the agent, not how a
+ * supervisor runs a shift.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { RefObject } from 'react';
 import type {
   AgentActionKind, EvidenceRef, Incident, Priority, SecurityEvent, TraceStep,
 } from '../../../shared/types';
 import { ACTION_LABELS, EVENT_LABELS, PRIORITY_ORDER } from '../../../shared/types';
 import {
-  ConfidenceBar, EmptyState, Label, OutcomeBadge, Panel, Pill, PriorityChip,
+  ConfidenceBar, EmptyState, Kbd, Label, OutcomeBadge, Panel, Pill, PriorityChip,
   SegmentedControl, StatusDot,
 } from '../components/ui';
 import { api } from '../lib/api';
 import { fmtClock, fmtDuration, fmtPct, initials, relTime } from '../lib/format';
 import {
-  pushToast, select, useFeed, useIncidents, useSelectedIncident, useSelection,
-  useSimTime, useWorld,
+  ACTION_MEANS, ACTION_PLAIN, ACTION_SHORT, EVIDENCE_PLAIN, OUTCOME_PLAIN,
+  beliefGapNote, evidenceDirection, incidentHeadline, likelihoodWord, sourcePlain,
+  wasRight,
+} from '../lib/plain';
+import {
+  pushToast, select, setQueueIds, setUi, toggleUi, useFeed, useIncidents,
+  useSelectedIncident, useSelection, useSimTime, useUi, useWorld,
 } from '../lib/store';
+import type { QueueFilter } from '../lib/store';
 import './Dispatch.css';
 
 const SOURCE_GLYPH: Record<SecurityEvent['sourceKind'], string> = {
@@ -33,18 +46,42 @@ const SOURCE_GLYPH: Record<SecurityEvent['sourceKind'], string> = {
 
 const OPEN = new Set(['triaging', 'open', 'dispatched', 'on_scene', 'escalated']);
 
+/**
+ * The inbox.
+ *
+ * "Needs you" is not "everything open" — Sentry handling a P3 nuisance alarm on
+ * its own is the product working, and putting it in front of a supervisor is
+ * exactly the alarm fatigue this is meant to remove. It earns a human when the
+ * agent has *committed a responder*, or when it is calling this a top-two
+ * priority, and nobody has signed off yet.
+ */
+function needsHuman(i: Incident): boolean {
+  if (!OPEN.has(i.status) || i.feedback) return false;
+  const d = i.decision;
+  if (!d) return false; // still reasoning — there is nothing to agree with yet
+  if (d.action === 'dispatch' || d.action === 'escalate') return true;
+  return d.priority === 'P0' || d.priority === 'P1';
+}
+
 export default function Dispatch({ overrideNonce }: { overrideNonce: number }) {
   const incidents = useIncidents();
   const selected = useSelectedIncident();
   const selectedId = useSelection();
+  const ui = useUi();
 
-  // Keep something selected so the detail pane is never blank once data exists.
-  useEffect(() => {
-    if (!selectedId && incidents.length > 0) select(incidents[0]!.id);
-  }, [incidents, selectedId]);
+  const counts = useMemo(() => ({
+    needs: incidents.filter(needsHuman).length,
+    open: incidents.filter((i) => OPEN.has(i.status)).length,
+    all: incidents.length,
+  }), [incidents]);
 
   const queue = useMemo(() => {
-    return [...incidents].sort((a, b) => {
+    const pool = incidents.filter((i) => {
+      if (ui.queueFilter === 'needs') return needsHuman(i);
+      if (ui.queueFilter === 'open') return OPEN.has(i.status);
+      return true;
+    });
+    return pool.sort((a, b) => {
       const ao = OPEN.has(a.status) ? 0 : 1;
       const bo = OPEN.has(b.status) ? 0 : 1;
       if (ao !== bo) return ao - bo;
@@ -53,24 +90,57 @@ export default function Dispatch({ overrideNonce }: { overrideNonce: number }) {
       if (ap !== bp) return ap - bp;
       return b.createdAt - a.createdAt;
     });
-  }, [incidents]);
+  }, [incidents, ui.queueFilter]);
 
-  const openCount = incidents.filter((i) => OPEN.has(i.status)).length;
+  // Publish the visible ordering so j/k walk what the operator can actually see.
+  useEffect(() => { setQueueIds(queue.map((i) => i.id)); }, [queue]);
+
+  // Keep something selected, and never strand the selection outside the filter.
+  useEffect(() => {
+    if (queue.length === 0) return;
+    if (!selectedId || !queue.some((i) => i.id === selectedId)) select(queue[0]!.id);
+  }, [queue, selectedId]);
 
   return (
-    <div className="dispatch">
-      <FeedColumn />
+    <div className={`dispatch${ui.ingestOpen ? '' : ' is-slim'}`}>
+      {ui.ingestOpen ? <FeedColumn /> : <FeedRail />}
 
       <Panel
         className="dispatch-queue"
         eyebrow="Incident queue"
-        title={`${openCount} open`}
-        actions={<Label>P0 first</Label>}
+        title={queueTitle(ui.queueFilter, counts)}
+        actions={
+          <SegmentedControl<QueueFilter>
+            ariaLabel="Filter the queue"
+            value={ui.queueFilter}
+            onChange={(queueFilter) => setUi({ queueFilter })}
+            options={[
+              {
+                value: 'needs',
+                label: (
+                  <>
+                    Needs you
+                    <span className={`seg-count${counts.needs > 0 ? ' is-hot' : ''}`}>{counts.needs}</span>
+                  </>
+                ),
+                title: 'Sentry committed a responder, or called it P0/P1, and nobody has signed off yet',
+              },
+              { value: 'open', label: `Open ${counts.open}`, title: 'Everything not yet closed out' },
+              { value: 'all', label: 'All', title: 'Including resolved and suppressed' },
+            ]}
+          />
+        }
         bodyClassName="dispatch-queue-body"
         scroll
       >
         {queue.length === 0
-          ? <EmptyState title="Queue empty">Nothing has been triaged yet. Incidents appear the moment the agent picks up an event.</EmptyState>
+          ? (
+            <EmptyState title={ui.queueFilter === 'needs' ? 'Nothing needs you' : 'Queue empty'}>
+              {ui.queueFilter === 'needs'
+                ? 'No open P0 or P1 incident is waiting on a human. Switch to Open to see everything Sentry is handling on its own.'
+                : 'Nothing has been triaged yet. Incidents appear the moment the agent picks up an event.'}
+            </EmptyState>
+          )
           : queue.map((i) => (
             <IncidentCard key={i.id} incident={i} active={i.id === selectedId} onSelect={() => select(i.id)} />
           ))}
@@ -84,11 +154,33 @@ export default function Dispatch({ overrideNonce }: { overrideNonce: number }) {
   );
 }
 
+function queueTitle(filter: QueueFilter, counts: { needs: number; open: number; all: number }): string {
+  if (filter === 'needs') return counts.needs === 0 ? 'All clear' : `${counts.needs} waiting on you`;
+  if (filter === 'open') return `${counts.open} open`;
+  return `${counts.all} total`;
+}
+
 // ── LEFT: raw ingest ────────────────────────────────────────────────────────
+
+/** Collapsed state: a spine that still reports the count, so nothing feels lost. */
+function FeedRail() {
+  const feed = useFeed();
+  return (
+    <button
+      type="button"
+      className="feed-rail"
+      onClick={() => toggleUi('ingestOpen')}
+      title="Show the raw alarm feed (F)"
+      aria-label="Show the raw alarm feed"
+    >
+      <span className="feed-rail-chevron" aria-hidden>›</span>
+      <span className="feed-rail-text">Alarm feed · {feed.length}</span>
+    </button>
+  );
+}
 
 function FeedColumn() {
   const feed = useFeed();
-  const now = useSimTime();
   const [filter, setFilter] = useState<'all' | 'robot' | 'sensor'>('all');
 
   const rows = useMemo(() => feed.filter((e) => {
@@ -100,19 +192,30 @@ function FeedColumn() {
   return (
     <Panel
       className="dispatch-feed"
-      eyebrow="Live ingest"
-      title={`${feed.length} events`}
+      eyebrow="Raw alarm feed"
+      title={`${feed.length} received`}
       actions={
-        <SegmentedControl
-          ariaLabel="Filter feed by source"
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: 'all', label: 'All' },
-            { value: 'robot', label: 'Bot' },
-            { value: 'sensor', label: 'Sen' },
-          ]}
-        />
+        <>
+          <SegmentedControl
+            ariaLabel="Filter feed by source"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'robot', label: 'Bot' },
+              { value: 'sensor', label: 'Sen' },
+            ]}
+          />
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm btn--icon"
+            onClick={() => toggleUi('ingestOpen')}
+            title="Hide the raw feed (F)"
+            aria-label="Hide the raw alarm feed"
+          >
+            ‹
+          </button>
+        </>
       }
       bodyClassName="feed-body"
       scroll
@@ -120,20 +223,16 @@ function FeedColumn() {
       {rows.length === 0
         ? <EmptyState title="No signal">The stream is idle. Press play in the header to start the world.</EmptyState>
         : rows.map((e) => (
-          <article key={e.id} className="feed-row enter">
+          <article
+            key={e.id}
+            className="feed-row enter"
+            title={`${sourcePlain(e.sourceKind)} · device confidence ${fmtPct(e.sensorConfidence)}`}
+          >
             <span className="feed-time mono">{fmtClock(e.ts)}</span>
-            <span className="feed-glyph" title={e.sourceKind.replace(/_/g, ' ')}>{SOURCE_GLYPH[e.sourceKind]}</span>
-            <div className="feed-main">
-              <div className="feed-top">
-                <span className="feed-zone mono">{String(e.metadata.zone ?? '')}</span>
-                <span className="feed-label">{EVENT_LABELS[e.type]}</span>
-              </div>
-              <div className="feed-sub">
-                <span className="label">Sensor conf</span>
-                <ConfidenceBar value={e.sensorConfidence} tone="neutral" className="feed-meter" />
-                <span className="mono feed-conf">{fmtPct(e.sensorConfidence)}</span>
-              </div>
-            </div>
+            <span className="feed-glyph">{SOURCE_GLYPH[e.sourceKind]}</span>
+            <span className="feed-zone mono">{String(e.metadata.zone ?? '')}</span>
+            <span className="feed-label">{EVENT_LABELS[e.type]}</span>
+            <ConfidenceBar value={e.sensorConfidence} tone="neutral" className="feed-meter" />
           </article>
         ))}
     </Panel>
@@ -158,31 +257,32 @@ function IncidentCard({ incident, active, onSelect }: {
     >
       <div className="inc-top">
         {d ? <PriorityChip priority={d.priority} /> : <span className="chip-p" data-p="P3">··</span>}
-        <span className="inc-zone mono">{String(incident.event.metadata.site ?? '')} · {String(incident.event.metadata.zone ?? '')}</span>
+        <span className="inc-title">{EVENT_LABELS[incident.event.type]}</span>
         <span className="inc-age mono">{relTime(incident.createdAt, now)}</span>
       </div>
 
-      <div className="inc-title">{EVENT_LABELS[incident.event.type]}</div>
+      <div className="inc-where mono">
+        {String(incident.event.metadata.site ?? '')} · {String(incident.event.metadata.zone ?? '')}
+      </div>
 
       <div className="inc-bottom">
         {triaging ? (
-          <span className="status status--warn status--live">Reasoning</span>
+          <span className="status status--warn status--live">Deciding</span>
         ) : d ? (
           <>
-            <span className={`inc-action is-${d.action}`}>{ACTION_LABELS[d.action]}</span>
-            <ConfidenceBar value={d.confidence} className="inc-conf" title={`Confidence ${fmtPct(d.confidence)}`} />
+            <span className={`inc-action is-${d.action}`}>{ACTION_SHORT[d.action]}</span>
+            {incident.dispatch && (
+              <span className="inc-resp truncate">
+                {incident.dispatch.accepted === false ? '✕ declined' : incident.dispatch.responderName}
+              </span>
+            )}
           </>
         ) : <span className="status status--idle">Undecided</span>}
+
+        {incident.outcome
+          ? <span className="inc-tail"><OutcomeBadge outcome={incident.outcome} /></span>
+          : needsHuman(incident) && <span className="inc-flag" title="Waiting on your sign-off">Needs you</span>}
       </div>
-
-      {incident.dispatch && (
-        <div className="inc-resp mono">
-          {incident.dispatch.accepted === false ? '✕ declined · ' : '→ '}
-          {incident.dispatch.responderName}
-        </div>
-      )}
-
-      {incident.outcome && <div className="inc-outcome"><OutcomeBadge outcome={incident.outcome} /></div>}
     </button>
   );
 }
@@ -198,9 +298,9 @@ function IncidentDetail({ incident, overrideNonce }: { incident: Incident | null
 
   if (!incident) {
     return (
-      <Panel className="dispatch-detail" eyebrow="Agent reasoning">
+      <Panel className="dispatch-detail" eyebrow="The call">
         <EmptyState title="Select an incident">
-          Pick anything in the queue to see the evidence the agent gathered, the tools it called, and why it decided what it did.
+          Pick anything in the queue to see what Sentry decided, why it decided that, and to confirm or override it.
         </EmptyState>
       </Panel>
     );
@@ -209,74 +309,78 @@ function IncidentDetail({ incident, overrideNonce }: { incident: Incident | null
   const d = incident.decision;
   const e = incident.event;
   const zone = world.zones.find((z) => z.id === e.zoneId);
+  const pReal = d ? 1 - d.falseAlarmProbability : null;
 
   return (
     <Panel
       className="dispatch-detail"
-      eyebrow="Agent reasoning"
-      title={EVENT_LABELS[e.type]}
-      actions={<Pill title={`Decided by ${incident.engine}`}>{incident.engine === 'claude' ? 'Claude' : 'Reasoner'}</Pill>}
+      eyebrow="The call"
+      title={incidentHeadline(incident, zone?.name)}
+      actions={
+        <Pill title={incident.engine === 'claude' ? 'Judged by Claude' : 'Judged by the local Reasoner engine'}>
+          {incident.engine === 'claude' ? 'Claude' : 'Reasoner'}
+        </Pill>
+      }
       bodyClassName="detail-body"
       scroll
     >
-      <header className="det-head">
-        <div className="det-meta">
-          <span className="mono">{String(e.metadata.site ?? '')} · {zone?.name ?? e.zoneId}</span>
-          <span className="mono muted">{fmtClock(e.ts)}</span>
-          <Pill>{e.sourceKind.replace(/_/g, ' ')}</Pill>
-        </div>
-        <p className="det-desc">{e.description}</p>
-      </header>
-
       {d ? (
         <>
-          <section className="det-decision">
+          {/* The lead. Everything an operator needs to accept or reject the call,
+              above the fold, in words — before a single number appears. */}
+          <section className="det-lead">
             <div className="det-verdict">
-              <h2 className={`display display--m det-action is-${d.action}`}>{ACTION_LABELS[d.action]}</h2>
+              <h2 className={`display display--m det-action is-${d.action}`}>{ACTION_PLAIN[d.action]}</h2>
               <PriorityChip priority={d.priority} />
             </div>
+            <p className="det-means">{ACTION_MEANS[d.action]}</p>
+            <p className="det-instruction">{d.instruction}</p>
+          </section>
 
+          <section className="det-belief-wrap">
             {/* The contrast that tells the whole story: what the device claimed
                 versus what the agent believes after consulting memory. */}
             <div className="det-belief">
               <div className="det-belief-cell">
-                <Label>Sensor said</Label>
+                <Label>The device claimed</Label>
                 <div className="det-belief-num mono">{fmtPct(e.sensorConfidence)}</div>
                 <ConfidenceBar value={e.sensorConfidence} tone="neutral" />
-                <span className="det-belief-note">device confidence</span>
+                <span className="det-belief-note">the sensor's own confidence</span>
               </div>
               <div className="det-belief-cell is-agent">
-                <Label tone="accent">Agent believes</Label>
-                <div className="det-belief-num mono">{fmtPct(1 - d.falseAlarmProbability)}</div>
-                <ConfidenceBar value={1 - d.falseAlarmProbability} />
-                <span className="det-belief-note">P(real) after memory</span>
-              </div>
-              <div className="det-belief-cell">
-                <Label>Confidence</Label>
-                <div className="det-belief-num mono">{fmtPct(d.confidence)}</div>
-                <ConfidenceBar value={d.confidence} tone="neutral" />
-                <span className="det-belief-note">
-                  {incident.decisionLatencyMs !== null ? `decided in ${fmtDuration(incident.decisionLatencyMs)}` : ''}
-                </span>
+                <Label tone="accent">Sentry believes</Label>
+                <div className="det-belief-num mono">{fmtPct(pReal ?? 0)}</div>
+                <ConfidenceBar value={pReal ?? 0} />
+                <span className="det-belief-note">{likelihoodWord(pReal ?? 0)}</span>
               </div>
             </div>
+            <p className="det-gap">{beliefGapNote(e.sensorConfidence, pReal ?? 0)}</p>
+          </section>
 
+          <section className="det-why">
+            <div className="det-section-head">
+              <Label>Why</Label>
+              <span className="det-section-note">
+                {incident.decisionLatencyMs !== null
+                  ? `decided in ${fmtDuration(incident.decisionLatencyMs)} · ${fmtPct(d.confidence)} confidence`
+                  : `${fmtPct(d.confidence)} confidence`}
+              </span>
+            </div>
             <p className="det-rationale">{d.rationale}</p>
-            <p className="det-instruction mono">{d.instruction}</p>
           </section>
 
           <EvidenceRail evidence={d.evidence} />
         </>
       ) : (
         <div className="det-thinking">
-          <span className="status status--warn status--live">Reasoning</span>
-          <span className="dim">The agent is gathering evidence. Steps appear below as they happen.</span>
+          <span className="status status--warn status--live">Deciding</span>
+          <span className="dim">Sentry is gathering evidence on {EVENT_LABELS[e.type]} at {zone?.name ?? e.zoneId}.</span>
         </div>
       )}
 
-      <TraceInspector steps={incident.trace} live={incident.status === 'triaging'} />
-
       {incident.revealedTruth && <GroundTruth incident={incident} />}
+
+      <WorkDisclosure incident={incident} />
 
       <OperatorBar
         incident={incident}
@@ -289,31 +393,49 @@ function IncidentDetail({ incident, overrideNonce }: { incident: Incident | null
 
 // ── Evidence attribution ────────────────────────────────────────────────────
 
-const EVIDENCE_LABEL: Record<EvidenceRef['kind'], string> = {
-  calibration: 'Calibration',
-  playbook: 'Playbook',
-  precedent: 'Precedent',
-  responder: 'Responder',
-  correlation: 'Correlation',
-  policy: 'Site facts',
-};
+/** Enough to show the argument; the rest is one click away. */
+const EVIDENCE_PREVIEW = 4;
+
+/** Strip schema vocabulary out of text an operator reads. */
+function humanize(s: string): string {
+  return s.replace(/\b[a-z]+(?:_[a-z]+)+\b/g, (m) => m.replace(/_/g, ' '));
+}
 
 function EvidenceRail({ evidence }: { evidence: EvidenceRef[] }) {
+  const [all, setAll] = useState(false);
   if (evidence.length === 0) return null;
+
+  // Ranked by influence — the question is "what moved this", not "what ran".
+  const ranked = [...evidence].sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight));
+  const shown = all ? ranked : ranked.slice(0, EVIDENCE_PREVIEW);
+
+  /**
+   * Bars are scaled against the strongest piece of evidence *in this decision*,
+   * not against an absolute ±1. Absolute scaling renders a typical set of
+   * weights as four invisible stubs, which communicates nothing; relative
+   * scaling answers the question actually being asked — which of these moved it
+   * most — and preserves the ordering exactly.
+   */
+  const peak = Math.max(...ranked.map((ev) => Math.abs(ev.weight)), 0.01);
+
   return (
     <section className="det-section">
       <div className="det-section-head">
-        <Label>Evidence</Label>
-        <span className="det-section-note">which memory moved this decision</span>
+        <Label>What Sentry checked</Label>
+        <span className="det-section-note">ranked by how much it moved the call</span>
       </div>
       <ul className="ev-list">
-        {evidence.map((ev, i) => {
+        {shown.map((ev, i) => {
           const pushes = ev.weight >= 0;
-          const mag = Math.min(1, Math.abs(ev.weight));
+          const mag = Math.min(1, Math.abs(ev.weight) / peak);
           return (
-            <li key={`${ev.kind}-${ev.refId}-${i}`} className="ev-row" title={ev.detail}>
-              <span className="ev-kind label">{EVIDENCE_LABEL[ev.kind]}</span>
-              <span className="ev-label">{ev.label}</span>
+            <li
+              key={`${ev.kind}-${ev.refId}-${i}`}
+              className="ev-row"
+              title={`${humanize(ev.detail)} — ${evidenceDirection(ev.weight)}`}
+            >
+              <span className="ev-kind label">{EVIDENCE_PLAIN[ev.kind]}</span>
+              <span className="ev-label truncate">{humanize(ev.label)}</span>
               <span className="ev-bar" aria-hidden>
                 <span className="ev-bar-mid" />
                 <span
@@ -321,44 +443,76 @@ function EvidenceRail({ evidence }: { evidence: EvidenceRef[] }) {
                   style={{ width: `${mag * 50}%`, [pushes ? 'left' : 'right']: '50%' }}
                 />
               </span>
-              <span className="ev-weight mono">{ev.weight >= 0 ? '+' : ''}{ev.weight.toFixed(2)}</span>
+              <span className="sr-only">{evidenceDirection(ev.weight)}</span>
             </li>
           );
         })}
       </ul>
-      <div className="ev-key">
-        <span className="label">← toward suppression</span>
-        <span className="label">toward action →</span>
+      <div className="ev-foot">
+        <span className="label">← stand down</span>
+        <span className="sr-only">Bar length is relative to the strongest piece of evidence in this decision.</span>
+        {ranked.length > EVIDENCE_PREVIEW && (
+          <button type="button" className="ev-more" onClick={() => setAll((v) => !v)}>
+            {all ? 'Show less' : `Show all ${ranked.length}`}
+          </button>
+        )}
+        <span className="label">respond →</span>
       </div>
     </section>
   );
 }
 
-// ── Trace ───────────────────────────────────────────────────────────────────
+// ── The technical layer, behind one disclosure ──────────────────────────────
+
+/**
+ * Collapsed by default. This is the difference between a console and a debug
+ * view: the audit trail must be *complete and reachable*, not *always on*.
+ */
+function WorkDisclosure({ incident }: { incident: Incident }) {
+  const ui = useUi();
+  const headRef = useRef<HTMLButtonElement>(null);
+  const live = incident.status === 'triaging';
+  const n = incident.trace.length;
+
+  // Opening a section taller than the viewport otherwise leaves the operator
+  // staring at step 9 of 13 with the decision scrolled away. Anchor to the
+  // toggle instead, so expanding reads as expanding.
+  useEffect(() => {
+    if (ui.workOpen) headRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [ui.workOpen]);
+
+  if (n === 0 && !live) return null;
+
+  return (
+    <section className="det-work">
+      <button
+        ref={headRef}
+        type="button"
+        className="work-toggle"
+        onClick={() => toggleUi('workOpen')}
+        aria-expanded={ui.workOpen}
+      >
+        <span className="work-caret" aria-hidden>{ui.workOpen ? '−' : '+'}</span>
+        <span className="work-title">Show Sentry's working</span>
+        <span className="work-count mono">{live ? 'live' : `${n} step${n === 1 ? '' : 's'}`}</span>
+        <Kbd>E</Kbd>
+      </button>
+      {ui.workOpen && <TraceInspector steps={incident.trace} live={live} />}
+    </section>
+  );
+}
 
 function TraceInspector({ steps, live }: { steps: TraceStep[]; live: boolean }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
-  const endRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (live) endRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [steps.length, live]);
-
-  if (steps.length === 0 && !live) return null;
 
   const toggle = (id: string) => setOpen((s) => {
     const n = new Set(s);
-    n.has(id) ? n.delete(id) : n.add(id);
+    if (n.has(id)) n.delete(id); else n.add(id);
     return n;
   });
 
   return (
-    <section className="det-section">
-      <div className="det-section-head">
-        <Label>Reasoning trace</Label>
-        <span className="det-section-note">{steps.length} step{steps.length === 1 ? '' : 's'}</span>
-      </div>
-
+    <div className="work-body">
       <ol className="trace">
         {steps.map((s) => {
           const expandable = s.kind === 'tool_call' || s.kind === 'tool_result';
@@ -374,7 +528,7 @@ function TraceInspector({ steps, live }: { steps: TraceStep[]; live: boolean }) 
                   disabled={!expandable}
                 >
                   <span className="trace-kind label">{s.kind.replace('_', ' ')}</span>
-                  <span className="trace-label">{s.label}</span>
+                  <span className="trace-label truncate">{s.label}</span>
                   <span className="trace-dur mono">{s.durationMs}ms</span>
                   {expandable && <span className="trace-caret">{isOpen ? '−' : '+'}</span>}
                 </button>
@@ -399,8 +553,7 @@ function TraceInspector({ steps, live }: { steps: TraceStep[]; live: boolean }) 
           </li>
         )}
       </ol>
-      <div ref={endRef} />
-    </section>
+    </div>
   );
 }
 
@@ -408,24 +561,21 @@ function TraceInspector({ steps, live }: { steps: TraceStep[]; live: boolean }) 
 
 function GroundTruth({ incident }: { incident: Incident }) {
   const t = incident.revealedTruth!;
-  const d = incident.decision;
-  const acted = d?.action === 'dispatch' || d?.action === 'escalate';
-  const right = incident.outcome === 'true_positive'
-    || (incident.outcome === 'false_alarm' && !acted);
+  const right = wasRight(incident);
 
   return (
     <section className={`det-section truth${right ? ' is-right' : ' is-wrong'}`}>
       <div className="det-section-head">
-        <Label>Ground truth</Label>
-        <span className="truth-verdict">{right ? 'Agent was right' : 'Agent was wrong'}</span>
+        <Label>What actually happened</Label>
+        <span className="truth-verdict">{right ? 'Sentry was right' : 'Sentry was wrong'}</span>
       </div>
-      <div className="truth-grid">
-        <div><Label>Was real</Label><div className="truth-val">{t.isReal ? 'Yes' : 'No'}</div></div>
-        <div><Label>True severity</Label><div className="truth-val">{t.trueSeverity}</div></div>
-        <div><Label>Outcome</Label><div className="truth-val">{incident.outcome && <OutcomeBadge outcome={incident.outcome} />}</div></div>
+      <div className="truth-line">
+        <span className="truth-val">{incident.outcome ? OUTCOME_PLAIN[incident.outcome] : '—'}</span>
+        <span className="dim">·</span>
+        <span className="dim">true severity {t.trueSeverity} of 5</span>
       </div>
       <p className="truth-why">{t.explanation}</p>
-      {incident.dispatch?.report && <p className="truth-report mono">{incident.dispatch.report}</p>}
+      {incident.dispatch?.report && <p className="truth-report">“{incident.dispatch.report}”</p>}
     </section>
   );
 }
@@ -462,8 +612,8 @@ function OperatorBar({ incident, overriding, setOverriding }: {
       });
       pushToast(
         verdict === 'confirm'
-          ? 'Confirmed. Recorded as agreement and folded into the next reflection pass.'
-          : 'Override recorded and executed. Overrides are the highest-weight training signal.',
+          ? 'Confirmed. Sentry records this as agreement and learns from it.'
+          : 'Override sent — and carried out. Your corrections are the strongest signal Sentry has.',
         'info',
       );
       setOverriding(false);
@@ -479,10 +629,10 @@ function OperatorBar({ incident, overriding, setOverriding }: {
     return (
       <div className="op-bar is-done">
         <StatusDot tone={incident.feedback.verdict === 'confirm' ? 'good' : 'warn'}>
-          {incident.feedback.verdict === 'confirm' ? 'Confirmed by operator' : 'Overridden by operator'}
+          {incident.feedback.verdict === 'confirm' ? 'You confirmed this' : 'You overrode this'}
         </StatusDot>
         {incident.feedback.correctedAction && (
-          <span className="dim">→ {ACTION_LABELS[incident.feedback.correctedAction]}</span>
+          <span className="dim">→ {ACTION_PLAIN[incident.feedback.correctedAction]}</span>
         )}
         {incident.feedback.note && <span className="op-note">“{incident.feedback.note}”</span>}
       </div>
@@ -495,48 +645,54 @@ function OperatorBar({ incident, overriding, setOverriding }: {
     <div className="op-bar">
       {!overriding ? (
         <>
-          <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void send('confirm')}>
-            Confirm
+          <button type="button" className="btn btn--primary op-cta" disabled={busy} onClick={() => void send('confirm')}>
+            Looks right
+            <Kbd>⏎</Kbd>
           </button>
-          <button type="button" className="btn" disabled={busy} onClick={() => setOverriding(true)}>
-            Override
+          <button type="button" className="btn op-cta" disabled={busy} onClick={() => setOverriding(true)}>
+            Change it
+            <Kbd>O</Kbd>
           </button>
-          <span className="op-hint label">A confirm · O override</span>
+          <span className="op-hint">Sentry learns from both.</span>
         </>
       ) : (
         <form
           className="op-form"
-          onSubmit={(e) => { e.preventDefault(); void send('override'); }}
+          onSubmit={(ev) => { ev.preventDefault(); void send('override'); }}
         >
+          <div className="op-form-head">
+            <Label tone="ink">Change this call</Label>
+            <span className="op-hint">This is carried out for real, not just logged.</span>
+          </div>
           <div className="op-fields">
             <label className="op-field">
-              <Label>Action</Label>
-              <select value={action} onChange={(e) => setAction(e.target.value as AgentActionKind)}>
-                {ACTIONS.map((a) => <option key={a} value={a}>{ACTION_LABELS[a]}</option>)}
+              <Label>Do this instead</Label>
+              <select value={action} onChange={(ev) => setAction(ev.target.value as AgentActionKind)}>
+                {ACTIONS.map((a) => <option key={a} value={a}>{ACTION_PLAIN[a]} ({ACTION_LABELS[a]})</option>)}
               </select>
             </label>
             <label className="op-field">
               <Label>Priority</Label>
-              <select value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
+              <select value={priority} onChange={(ev) => setPriority(ev.target.value as Priority)}>
                 {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </label>
             <label className="op-field op-field--wide">
-              <Label>Responder</Label>
-              <select value={responder} onChange={(e) => setResponder(e.target.value)}>
-                <option value="">Let the agent choose</option>
+              <Label>Who goes</Label>
+              <select value={responder} onChange={(ev) => setResponder(ev.target.value)}>
+                <option value="">Let Sentry choose</option>
                 {guards.map((g) => <option key={g.id} value={g.id}>{g.name} · {g.status.replace(/_/g, ' ')}</option>)}
               </select>
             </label>
           </div>
           <input
             className="op-note-input"
-            placeholder="Why? (optional — this text reaches the reflection agent)"
+            placeholder="Why? (optional — Sentry reads this when it revises the playbook)"
             value={note}
-            onChange={(e) => setNote(e.target.value)}
+            onChange={(ev) => setNote(ev.target.value)}
           />
           <div className="row gap2">
-            <button type="submit" className="btn btn--accent" disabled={busy}>Submit override</button>
+            <button type="submit" className="btn btn--accent" disabled={busy}>Send correction</button>
             <button type="button" className="btn btn--ghost" onClick={() => setOverriding(false)}>Cancel</button>
           </div>
         </form>
@@ -547,10 +703,35 @@ function OperatorBar({ incident, overriding, setOverriding }: {
 
 // ── Site map ────────────────────────────────────────────────────────────────
 
+/**
+ * Site bounds tile the unit square, so the map has no aspect ratio of its own —
+ * it takes the panel's. Rendering into a fixed viewBox letterboxed the plan into
+ * a ribbon with dead space either side; deriving the viewBox height from the
+ * measured width instead fills the strip exactly, and because the viewBox and
+ * the viewport then share an aspect, nothing is distorted and label sizes hold.
+ */
+function useMapHeight(ref: RefObject<HTMLDivElement | null>): number {
+  const [h, setH] = useState(46);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width <= 0 || height <= 0) return;
+      setH(Math.max(22, Math.min(100, (height / width) * 100)));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return h;
+}
+
 function SiteMap() {
   const world = useWorld();
   const incidents = useIncidents();
   const [inject, setInject] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const H = useMapHeight(bodyRef);
 
   const hot = useMemo(() => {
     const m = new Map<string, Priority>();
@@ -571,31 +752,30 @@ function SiteMap() {
       className="dispatch-map"
       eyebrow="Site map"
       title={`${world.sites.length} sites · ${world.zones.length} zones`}
-      actions={<Label>click a zone to inject</Label>}
+      actions={<Label>click a zone to raise an alarm</Label>}
       bodyClassName="map-body"
+      bodyRef={bodyRef}
     >
-      <svg viewBox="0 0 100 46" className="map-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Site map">
+      <svg viewBox={`0 0 100 ${H}`} className="map-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Site map">
         {world.sites.map((s) => (
-          <g key={s.id}>
-            <rect
-              x={s.bounds.x * 100} y={s.bounds.y * 46}
-              width={s.bounds.w * 100} height={s.bounds.h * 46}
-              className="map-site"
-            />
-            <text x={s.bounds.x * 100 + 1.2} y={s.bounds.y * 46 + 3} className="map-site-label">{s.code}</text>
-          </g>
+          <rect
+            key={s.id}
+            x={s.bounds.x * 100} y={s.bounds.y * H}
+            width={s.bounds.w * 100} height={s.bounds.h * H}
+            className="map-site"
+          />
         ))}
 
         {world.zones.map((z) => {
           const site = world.sites.find((s) => s.id === z.siteId);
           if (!site) return null;
           const px = (site.bounds.x + z.x * site.bounds.w) * 100;
-          const py = (site.bounds.y + z.y * site.bounds.h) * 46;
+          const py = (site.bounds.y + z.y * site.bounds.h) * H;
           return z.adjacent.map((aid) => {
             const a = world.zones.find((zz) => zz.id === aid);
             if (!a || a.siteId !== z.siteId || a.id < z.id) return null;
             const ax = (site.bounds.x + a.x * site.bounds.w) * 100;
-            const ay = (site.bounds.y + a.y * site.bounds.h) * 46;
+            const ay = (site.bounds.y + a.y * site.bounds.h) * H;
             return <line key={`${z.id}-${aid}`} x1={px} y1={py} x2={ax} y2={ay} className="map-link" />;
           });
         })}
@@ -604,10 +784,11 @@ function SiteMap() {
           const site = world.sites.find((s) => s.id === z.siteId);
           if (!site) return null;
           const px = (site.bounds.x + z.x * site.bounds.w) * 100;
-          const py = (site.bounds.y + z.y * site.bounds.h) * 46;
+          const py = (site.bounds.y + z.y * site.bounds.h) * H;
           const p = hot.get(z.id);
           return (
             <g key={z.id} className="map-zone" onClick={() => setInject(inject === z.id ? null : z.id)}>
+              <title>{z.name} — click to raise a test alarm here</title>
               {p && <circle cx={px} cy={py} r={3.1} className={`map-pulse is-${p}`} />}
               <rect x={px - 1.5} y={py - 1.5} width={3} height={3} className={`map-node${p ? ` is-${p}` : ''}`} />
               <text x={px} y={py + 4.4} className="map-zone-label">{z.code}</text>
@@ -620,14 +801,28 @@ function SiteMap() {
           const site = z && world.sites.find((s) => s.id === z.siteId);
           if (!z || !site) return null;
           const px = (site.bounds.x + z.x * site.bounds.w) * 100 + 2.2;
-          const py = (site.bounds.y + z.y * site.bounds.h) * 46 - 2.2;
+          const py = (site.bounds.y + z.y * site.bounds.h) * H - 2.2;
           return (
             <g key={g.id}>
+              <title>{g.name} — {g.status.replace(/_/g, ' ')}</title>
               <circle cx={px} cy={py} r={1.7} className={`map-guard is-${g.status}`} />
               <text x={px} y={py + 0.6} className="map-guard-label">{initials(g.name)}</text>
             </g>
           );
         })}
+
+        {/* Site codes paint last: drawn with the site rect they sat *under* any
+            zone node that happened to land in the corner. */}
+        {world.sites.map((s) => (
+          <text
+            key={`${s.id}-label`}
+            x={s.bounds.x * 100 + 1.2}
+            y={s.bounds.y * H + 3}
+            className="map-site-label"
+          >
+            {s.code}
+          </text>
+        ))}
       </svg>
 
       {inject && <InjectPopover zoneId={inject} onClose={() => setInject(null)} />}
@@ -646,7 +841,7 @@ function InjectPopover({ zoneId, onClose }: { zoneId: string; onClose: () => voi
   return (
     <div className="inject">
       <div className="inject-head">
-        <Label tone="ink">Inject · {zone?.code ?? zoneId}</Label>
+        <Label tone="ink">Raise an alarm · {zone?.code ?? zoneId}</Label>
         <button type="button" className="btn btn--ghost btn--sm" onClick={onClose}>Close</button>
       </div>
       <div className="inject-grid">
@@ -657,8 +852,8 @@ function InjectPopover({ zoneId, onClose }: { zoneId: string; onClose: () => voi
             className="btn btn--sm"
             onClick={() => {
               void api.injectEvent(t, zoneId)
-                .then(() => pushToast(`Injected ${EVENT_LABELS[t]} at ${zone?.code ?? zoneId}`))
-                .catch((e) => pushToast(String(e), 'error'));
+                .then(() => pushToast(`${EVENT_LABELS[t]} raised at ${zone?.code ?? zoneId}`))
+                .catch((err) => pushToast(String(err), 'error'));
               onClose();
             }}
           >

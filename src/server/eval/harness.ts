@@ -482,8 +482,8 @@ function clamp01(n: number): number {
  * stable across worlds. Everything else is copied by value, so the eval and the
  * live console cannot observe each other.
  */
-function cloneMemory(src: Memory, world: WorldState, now: SimTime): Memory {
-  const dst = createMemory(world, now);
+function cloneMemory(src: Memory, world: WorldState, now: SimTime, seed: number): Memory {
+  const dst = createMemory(world, now, seed);
   const byId = worldEntityIndex(world);
   copyState(src.calibration, dst.calibration, byId);
   copyState(src.responders, dst.responders, byId);
@@ -616,7 +616,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
 
   // ── 4. Arm B — the real agent, memory enabled but empty.
   const coldSim = new WorldSimulator(opts.seed);
-  const coldMemory = createMemory(coldSim.world, t0);
+  const coldMemory = createMemory(coldSim.world, t0, opts.seed);
   const coldIncidents = await runArm({
     id: 'cold',
     label: 'Agent, cold memory',
@@ -632,13 +632,13 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
   let provenance: string;
 
   if (opts.liveMemory) {
-    learnedMemory = cloneMemory(opts.liveMemory, learnedSim.world, t0);
+    learnedMemory = cloneMemory(opts.liveMemory, learnedSim.world, t0, opts.seed);
     provenance = 'deep-cloned from the live console, so this arm reflects exactly what the running system has learned so far';
     if (opts.seed !== currentWorldSeed()) {
       caveats.push('Live memory was learned in the console\'s world. Responder ids are stable across seeds but the hidden responder traits behind them are not, so the responder channel only transfers cleanly when the eval seed matches the console seed.');
     }
   } else {
-    learnedMemory = createMemory(learnedSim.world, t0);
+    learnedMemory = createMemory(learnedSim.world, t0, opts.seed);
     const warmCount = Math.max(WARMUP_MIN, Math.min(WARMUP_MAX, Math.round(eventCount * 0.75)));
     const warmIncidents = await warmUp(opts.seed, learnedMemory, eventCount, warmCount);
     provenance = `pre-trained on ${warmIncidents.length} warm-up events drawn from the same world and the same generator, taken strictly *after* the ${eventCount} scored events in the stream so there is no overlap with the test set`;

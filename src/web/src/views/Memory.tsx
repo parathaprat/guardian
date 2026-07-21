@@ -1,7 +1,10 @@
 /**
  * MEMORY — what the agent has learned, and the human gate on the playbook.
  *
- * Three channels, all inspectable, all editable by the operator. The proposal
+ * The learned channels that have a home of their own, all inspectable and all
+ * editable by the operator. Responder models live on Roster and precedent
+ * surfaces per-decision on Dispatch; this page owns calibration and the
+ * playbook, which are the two an ops manager actually reasons about. The proposal
  * diff is the most important thing on this screen: the agent drafts policy, a
  * human approves it.
  */
@@ -46,10 +49,12 @@ export default function Memory() {
       <header className="view-head">
         <div>
           <Label>Memory</Label>
-          <h1 className="display display--l">Three channels.<br />All inspectable<span className="dot-accent" /></h1>
+          <h1 className="display display--l">Nothing here<br />was configured<span className="dot-accent" /></h1>
           <p className="view-lede">
-            Nothing here was configured. Every number below was learned from an outcome the
-            system watched resolve — and the playbook still needs a human to sign it off.
+            Every number on this page was learned from an outcome Sentry watched resolve.
+            Calibration and the playbook live here; the responder models are on Roster, and
+            precedent shows up as evidence on each call. The playbook still needs a human to
+            sign it off.
           </p>
         </div>
         <div className="view-stats">

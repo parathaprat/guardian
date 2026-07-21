@@ -314,30 +314,37 @@ export class Responders implements ResponderStore {
     const { model, etaMs, isClosest, matched, requiredSkill, explore, pAccept, isRobot } = args;
     const parts: string[] = [];
 
+    // This string is read by a shift supervisor inside the decision rationale,
+    // so it says what the sampler did in words. The posterior itself is still
+    // on the Roster screen for anyone who wants the arithmetic.
     if (explore && model.exploring) {
       parts.push(
-        `exploring — only ${model.dispatches} prior dispatch${model.dispatches === 1 ? '' : 'es'}, sampling optimistically (p̂accept ${pct(pAccept)})`,
+        `chosen with only ${model.dispatches} previous dispatch${model.dispatches === 1 ? '' : 'es'} on record — ` +
+        `Sentry gives under-used responders a turn rather than always sending the same person ` +
+        `(${pct(pAccept)} chance of accepting)`,
       );
       parts.push(`ETA ${fmtDur(etaMs)}`);
     } else {
       parts.push(`${isClosest ? 'closest available' : 'available'} (ETA ${fmtDur(etaMs)})`);
       parts.push(
         model.dispatches >= 3
-          ? `accepts ${pct(model.pAccept)} of dispatches`
-          : `accept rate unproven (${model.dispatches} prior)`,
+          ? `accepts ${pct(model.pAccept)} of calls`
+          : `too few calls so far to know their accept rate (${model.dispatches})`,
       );
     }
 
     if (model.responseCount >= 2) {
-      parts.push(`avg on-scene ${fmtDur(model.responseMeanMs)} ±${fmtDur(model.responseStdMs)}`);
+      parts.push(`usually on scene in ${fmtDur(model.responseMeanMs)}`);
     }
     if (model.dispatches >= 4) {
-      parts.push(`${pct(model.pResolve)} clean resolutions`);
+      parts.push(`resolves ${pct(model.pResolve)} of calls cleanly`);
     }
     if (requiredSkill) {
-      parts.push(matched ? `${SKILL_LABEL[requiredSkill]}-qualified` : `not ${SKILL_LABEL[requiredSkill]}-qualified`);
+      parts.push(matched
+        ? `trained for ${SKILL_LABEL[requiredSkill]}`
+        : `not trained for ${SKILL_LABEL[requiredSkill]}`);
     }
-    if (isRobot) parts.push('robot — observation only');
+    if (isRobot) parts.push('robot — can observe, cannot intervene');
 
     return parts.join(', ');
   }

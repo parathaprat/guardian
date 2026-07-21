@@ -248,34 +248,37 @@ export class ReasonerAgent implements DispatchAgent {
     history: ZoneHistoryResult; correlation: CorrelationResult; playbook: PlaybookResult;
     severity: Severity; responderNote: string;
   }): string {
-    const parts: string[] = [];
     const pct = (n: number) => `${Math.round(n * 100)}%`;
+    /** Sentences are assembled, so each fragment arrives without its terminator. */
+    const sentence = (s: string) => `${s.replace(/[.\s]+$/, '')}.`;
+    const upperFirst = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 
-    if (a.history.available && a.learnedFrom > 0) {
-      parts.push(
-        `This zone and hour have produced a real incident ${pct(a.history.pReal)} of the time across ` +
-        `${a.learnedFrom} observation${a.learnedFrom === 1 ? '' : 's'}`,
-      );
-    } else {
-      parts.push('There is no usable history for this zone, hour and event type yet, so this rests on the type prior');
-    }
+    // The correlation clause continues the history sentence ("…and 3 signals
+    // across adjacent zones"); everything else stands alone. Joining them all
+    // with the same separator is what produced run-on sentences.
+    let lead = a.history.available && a.learnedFrom > 0
+      ? `This zone and hour have produced a real incident ${pct(a.history.pReal)} of the time across `
+        + `${a.learnedFrom} observation${a.learnedFrom === 1 ? '' : 's'}`
+      : 'Sentry has not seen this zone, hour and alarm type together often enough to have a view yet, '
+        + 'so it is falling back on how this kind of alarm behaves generally';
 
-    if (a.correlation.patternDetected) parts.push(`and ${a.correlation.label.toLowerCase()}`);
+    if (a.correlation.patternDetected) lead += `, and ${a.correlation.label.toLowerCase()}`;
+
+    const parts: string[] = [sentence(lead)];
     if (a.playbook.available && a.playbook.rules.length > 0) {
-      parts.push(`An approved playbook rule applies: ${a.playbook.rules[0]!.title}`);
+      parts.push(sentence(`An approved playbook rule applies: ${a.playbook.rules[0]!.title}`));
     }
 
     const verdict = {
-      dispatch: `Dispatching: at ${pct(a.pReal)} likelihood and severity ${a.severity}, the cost of being wrong about a real incident outweighs the guard time.`,
-      escalate: `Escalating: severity ${a.severity} at ${pct(a.pReal)} likelihood is above the threshold where a single responder is sufficient.`,
-      monitor: `Holding under observation: at ${pct(a.pReal)} the evidence is not strong enough to spend a guard, but not weak enough to close.`,
-      suppress: `Suppressing: at ${pct(a.pReal)} this matches an established nuisance pattern, and dispatching would burn guard trust for no security benefit.`,
+      dispatch: `Sending someone: at ${pct(a.pReal)} likely real and severity ${a.severity} of 5, being wrong about a real incident costs more than the guard's time.`,
+      escalate: `Escalating: severity ${a.severity} of 5 at ${pct(a.pReal)} likely real is past the point where one responder is enough.`,
+      monitor: `Holding and watching: at ${pct(a.pReal)} likely real this is not strong enough to spend a guard on, but not weak enough to close.`,
+      suppress: `Standing down: at ${pct(a.pReal)} likely real this matches a nuisance pattern Sentry has seen here before, and sending someone would spend guard trust for no security benefit.`,
     }[a.action];
 
-    const body = parts.length > 1
-      ? `${parts[0]} ${parts.slice(1).join('. ')}.`
-      : `${parts[0]}.`;
+    parts.push(sentence(verdict));
+    if (a.responderNote) parts.push(sentence(upperFirst(a.responderNote)));
 
-    return `${body} ${verdict}${a.responderNote ? ` ${a.responderNote}` : ''}`;
+    return parts.join(' ');
   }
 }
