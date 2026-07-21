@@ -18,7 +18,7 @@ import { Responders } from './responders';
  *
  * Thompson sampling draws to decide whether to explore an under-observed
  * responder, and an unseeded draw makes every memory-enabled arm of the eval
- * irreproducible — the static arm stays bit-stable while the arms under test
+ * irreproducible, the static arm stays bit-stable while the arms under test
  * wander, which is the worst possible place for nondeterminism to live. The
  * stream is forked, so responder draws can never shift the world's stream.
  */

@@ -1,5 +1,5 @@
 /**
- * SENTRY chart kit — hand-rolled inline SVG, no chart library.
+ * SENTRY chart kit, hand-rolled inline SVG, no chart library.
  *
  * Colours are emitted as `var(--token)` rather than resolved values so a theme
  * swap costs nothing and no component ever hardcodes a hex. Scales come from
@@ -33,7 +33,7 @@ const ARM_RAMP = ['var(--arm-1)', 'var(--arm-2)', 'var(--arm-3)'] as const;
 const SEQ_RAMP = ['var(--seq-1)', 'var(--seq-2)', 'var(--seq-3)', 'var(--seq-4)', 'var(--seq-5)'] as const;
 const SEQ_EMPTY = 'var(--seq-empty)';
 
-/** Outcomes are *state*, not identity — they wear status tokens. */
+/** Outcomes are *state*, not identity, they wear status tokens. */
 export const OUTCOME_COLORS: Record<ResolutionOutcome, string> = {
   true_positive: 'var(--status-good)',
   false_alarm: 'var(--status-warn)',
@@ -91,7 +91,7 @@ function niceTicks(min: number, max: number, count = 4): number[] {
   return out;
 }
 
-/** Column with a 4px rounded cap and a square baseline — the house bar shape. */
+/** Column with a 4px rounded cap and a square baseline, the house bar shape. */
 function barPath(x: number, y: number, w: number, h: number, radius = 4): string {
   const r = Math.max(0, Math.min(radius, w / 2, h));
   if (r < 0.5) return `M${x} ${y}h${w}v${h}h${-w}Z`;
@@ -113,7 +113,7 @@ function ringArc(cx: number, cy: number, rOut: number, rIn: number, a0: number, 
     `L${i1.x} ${i1.y}A${rIn} ${rIn} 0 ${large} 0 ${i0.x} ${i0.y}Z`;
 }
 
-/** Approximate mono-glyph truncation — cheaper than measuring, close enough at 9px. */
+/** Approximate mono-glyph truncation, cheaper than measuring, close enough at 9px. */
 function truncateToWidth(s: string, px: number, charPx = 5.7): string {
   const max = Math.floor(px / charPx);
   if (s.length <= max) return s;
@@ -121,7 +121,7 @@ function truncateToWidth(s: string, px: number, charPx = 5.7): string {
 }
 
 const defaultFormat = (v: number): string =>
-  !Number.isFinite(v) ? '—'
+  !Number.isFinite(v) ? '-'
     : Math.abs(v) >= 1000 ? Math.round(v).toLocaleString('en-US')
       : Math.abs(v) >= 10 ? v.toFixed(0)
         : Number(v.toFixed(2)).toString();
@@ -174,7 +174,7 @@ export interface TipRow {
   label: string;
   value: string;
   color?: string;
-  /** `line` for line series, `swatch` for bars/areas/cells — mirrors the mark. */
+  /** `line` for line series, `swatch` for bars/areas/cells, mirrors the mark. */
   mark?: 'line' | 'swatch';
   strong?: boolean;
 }
@@ -221,7 +221,7 @@ export interface LegendItem {
   mark?: 'line' | 'swatch';
 }
 
-/** Always rendered for two or more series — identity is never colour-alone. */
+/** Always rendered for two or more series, identity is never colour-alone. */
 function ChartLegend({
   items, rows = false, onHover, activeId,
 }: {
@@ -261,7 +261,7 @@ function ChartEmpty({ label, height }: { label: string; height: number }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  GROUPED BARS  — the eval-arm comparison
+//  GROUPED BARS , the eval-arm comparison
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface BarSeries {
@@ -286,7 +286,7 @@ export interface GroupedBarsProps {
   height?: number;
   /** Formats the direct label, the axis ticks, and the tooltip value. */
   format?: (v: number) => string;
-  /** Hard domain cap — e.g. 1 for rate metrics. */
+  /** Hard domain cap, e.g. 1 for rate metrics. */
   yMax?: number;
   palette?: 'arm' | 'series';
   valueLabels?: boolean;
@@ -466,7 +466,7 @@ export function GroupedBars({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  LINE CHART  — the learning curve
+//  LINE CHART , the learning curve
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface LinePoint {
@@ -483,7 +483,7 @@ export interface LineSeriesData {
 }
 
 export interface LineChartProps {
-  /** Max three. Series beyond the third are dropped — facet instead. */
+  /** Max three. Series beyond the third are dropped, facet instead. */
   series: LineSeriesData[];
   height?: number;
   /** Pin the y domain to [0,1] for rate metrics. */
@@ -492,7 +492,7 @@ export interface LineChartProps {
   yMax?: number;
   xFormat?: (x: number) => string;
   yFormat?: (y: number) => string;
-  /** A ~10% wash under the first series only — never under all of them. */
+  /** A ~10% wash under the first series only, never under all of them. */
   area?: boolean;
   /** Label the final point of each series when the ends do not collide. */
   endLabels?: boolean;
@@ -591,7 +591,7 @@ export function LineChart({
       const y = lookups[i].get(snapped);
       return {
         label: s.label,
-        value: y === null || y === undefined ? '—' : yFormat(y),
+        value: y === null || y === undefined ? '-' : yFormat(y),
         color: s.color,
         mark: 'line' as const,
       };
@@ -729,7 +729,7 @@ export function LineChart({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  HEATMAP  — the calibration grid
+//  HEATMAP , the calibration grid
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface HeatAxisItem {
@@ -740,7 +740,7 @@ export interface HeatAxisItem {
 export interface HeatCell {
   rowId: string;
   colId: string;
-  /** 0..1 magnitude — P(real) for the calibration grid. */
+  /** 0..1 magnitude. P(real) for the calibration grid. */
   value: number;
   /** Credible-interval half-width; drives the uncertainty hatch. */
   uncertainty?: number;
@@ -865,13 +865,13 @@ export function Heatmap({
                           onClick={onCellClick && cell ? () => onCellClick(cell) : undefined}
                           onFocus={() => setTip({
                             x: x + colW / 2, y, title: `${r.label} · ${c.label}`,
-                            rows: [{ label: legendLabel, value: obs === 0 ? '—' : valueFormat(value), color: seqFill(value, obs), mark: 'swatch' }],
+                            rows: [{ label: legendLabel, value: obs === 0 ? '-' : valueFormat(value), color: seqFill(value, obs), mark: 'swatch' }],
                             note: obs === 0 ? 'No observations' : `±${Math.round(unc * 100)}pp · n=${obs}`,
                           })}
                           onBlur={() => setTip(null)}
                           onPointerEnter={() => setTip({
                             x: x + colW / 2, y, title: `${r.label} · ${c.label}`,
-                            rows: [{ label: legendLabel, value: obs === 0 ? '—' : valueFormat(value), color: seqFill(value, obs), mark: 'swatch' }],
+                            rows: [{ label: legendLabel, value: obs === 0 ? '-' : valueFormat(value), color: seqFill(value, obs), mark: 'swatch' }],
                             note: obs === 0 ? 'No observations' : `±${Math.round(unc * 100)}pp · n=${obs}`,
                           })}
                         />
@@ -948,14 +948,14 @@ export function Sparkline({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  DONUT  — the outcome mix
+//  DONUT , the outcome mix
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface DonutSlice {
   id: string;
   label: string;
   value: number;
-  /** Status token — outcomes are state, not identity. */
+  /** Status token, outcomes are state, not identity. */
   color: string;
 }
 
@@ -1080,7 +1080,7 @@ export interface MetricTileProps {
   lowerIsBetter?: boolean;
   spark?: number[];
   sparkClamp01?: boolean;
-  /** One hero number per screen — this is the only place `--accent` belongs. */
+  /** One hero number per screen, this is the only place `--accent` belongs. */
   hero?: boolean;
   hint?: string;
   className?: string;

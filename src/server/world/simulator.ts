@@ -1,5 +1,5 @@
 /**
- * SENTRY — the world simulator.
+ * SENTRY, the world simulator.
  *
  * Owns the only copy of ground truth in the system. Events leave here with the
  * truth attached in `SeededEvent.truth`; the dispatch pipeline is handed
@@ -36,7 +36,7 @@ const CROSS_SITE_MS = 9 * 60_000;
 /**
  * How the world actually behaves, per event type, absent a matching regularity.
  * Deliberately NOT the same table the agent reasons from (`TYPE_PROFILE` in
- * agent/tools.ts) — if the agent's prior were the generator's truth, the
+ * agent/tools.ts), if the agent's prior were the generator's truth, the
  * calibration channel would have nothing left to learn.
  */
 interface TruthProfile {
@@ -50,18 +50,18 @@ interface TruthProfile {
 }
 
 const TRUTH: Record<EventType, TruthProfile> = {
-  motion_detected:      { pReal: 0.13, severity: 2, skill: null,             rate: 24, real: 'Confirmed person moving through the zone.', fake: 'Environmental trigger — no person present.' },
-  door_propped:         { pReal: 0.45, severity: 3, skill: 'access_control', rate: 9,  real: 'Door held open with no authorised presence.', fake: 'Scheduled activity — door released normally.' },
-  door_forced:          { pReal: 0.71, severity: 4, skill: 'access_control', rate: 4,  real: 'Strike plate damaged; forced entry.', fake: 'Mechanical fault — latch misaligned, not forced.' },
+  motion_detected:      { pReal: 0.13, severity: 2, skill: null,             rate: 24, real: 'Confirmed person moving through the zone.', fake: 'Environmental trigger, no person present.' },
+  door_propped:         { pReal: 0.45, severity: 3, skill: 'access_control', rate: 9,  real: 'Door held open with no authorised presence.', fake: 'Scheduled activity, door released normally.' },
+  door_forced:          { pReal: 0.71, severity: 4, skill: 'access_control', rate: 4,  real: 'Strike plate damaged; forced entry.', fake: 'Mechanical fault, latch misaligned, not forced.' },
   glass_break:          { pReal: 0.44, severity: 4, skill: 'armed',          rate: 5,  real: 'Glazing breached.', fake: 'Acoustic false trigger.' },
-  tailgating:           { pReal: 0.34, severity: 3, skill: 'access_control', rate: 10, real: 'Unbadged individual followed a credential holder in.', fake: 'Both parties badged — reader lag.' },
-  loitering:            { pReal: 0.29, severity: 2, skill: 'de_escalation',  rate: 11, real: 'Individual lingering with no legitimate business.', fake: 'Passer-by dwell — moved on unaided.' },
+  tailgating:           { pReal: 0.34, severity: 3, skill: 'access_control', rate: 10, real: 'Unbadged individual followed a credential holder in.', fake: 'Both parties badged, reader lag.' },
+  loitering:            { pReal: 0.29, severity: 2, skill: 'de_escalation',  rate: 11, real: 'Individual lingering with no legitimate business.', fake: 'Passer-by dwell, moved on unaided.' },
   person_down:          { pReal: 0.88, severity: 5, skill: 'medical',        rate: 2,  real: 'Person unresponsive on the ground.', fake: 'Posture misclassified by analytics.' },
   fire_alarm:           { pReal: 0.62, severity: 5, skill: 'fire',           rate: 2,  real: 'Genuine smoke/heat activation.', fake: 'Dust or steam on the detector head.' },
   vehicle_unauthorized: { pReal: 0.41, severity: 3, skill: null,             rate: 7,  real: 'Unregistered vehicle in a controlled area.', fake: 'Vehicle on an unsynced permit list.' },
   perimeter_breach:     { pReal: 0.52, severity: 4, skill: 'armed',          rate: 6,  real: 'Fence line crossed.', fake: 'Wildlife or debris on the beam.' },
-  robot_obstruction:    { pReal: 0.80, severity: 1, skill: 'technical',      rate: 5,  real: 'Robot physically blocked and unable to route.', fake: 'Transient stall — self-cleared.' },
-  camera_offline:       { pReal: 0.86, severity: 2, skill: 'technical',      rate: 4,  real: 'Camera genuinely down.', fake: 'Momentary network drop — stream restored.' },
+  robot_obstruction:    { pReal: 0.80, severity: 1, skill: 'technical',      rate: 5,  real: 'Robot physically blocked and unable to route.', fake: 'Transient stall, self-cleared.' },
+  camera_offline:       { pReal: 0.86, severity: 2, skill: 'technical',      rate: 4,  real: 'Camera genuinely down.', fake: 'Momentary network drop, stream restored.' },
   panic_button:         { pReal: 0.79, severity: 5, skill: 'armed',          rate: 1,  real: 'Duress signal from a real person.', fake: 'Accidental activation.' },
   badge_anomaly:        { pReal: 0.35, severity: 3, skill: 'access_control', rate: 8,  real: 'Credential used outside its authorisation.', fake: 'Stale entry in the access list.' },
   package_theft:        { pReal: 0.56, severity: 2, skill: null,             rate: 6,  real: 'Item removed by someone other than the recipient.', fake: 'Legitimate collection.' },
@@ -84,7 +84,7 @@ const TENANT_TYPES: EventType[] = ['noise_complaint', 'package_theft', 'person_d
  */
 /**
  * Alarms per sim-hour across the whole 3-site portfolio. A real portfolio of this
- * size runs busier than intuition suggests — the overwhelming majority of that
+ * size runs busier than intuition suggests, the overwhelming majority of that
  * traffic is nuisance, which is precisely the problem the agent exists to solve.
  * At the default 64× this lands around one event every two seconds.
  */
@@ -94,7 +94,7 @@ function arrivalRate(hour: number): number {
   return 20;
 }
 
-/** Overnight events are likelier to be genuine — nobody is supposed to be there. */
+/** Overnight events are likelier to be genuine, nobody is supposed to be there. */
 function nightRealBoost(hour: number): number {
   return hour >= 23 || hour < 5 ? 1.45 : 1;
 }
@@ -164,7 +164,7 @@ export class WorldSimulator implements Simulator {
 
   generate(n: number): SeededEvent[] {
     const out: SeededEvent[] = [];
-    // No responder side effects and no shift churn — this is stream synthesis only.
+    // No responder side effects and no shift churn, this is stream synthesis only.
     while (out.length < n) {
       const hour = new Date(this.clock).getUTCHours();
       const perMs = arrivalRate(hour) / 3_600_000;
@@ -174,7 +174,7 @@ export class WorldSimulator implements Simulator {
     return out.slice(0, n);
   }
 
-  /** Emit whatever the world produces at `ts` — usually one event, sometimes a burst. */
+  /** Emit whatever the world produces at `ts`, usually one event, sometimes a burst. */
   private emitAt(ts: SimTime): SeededEvent[] {
     if (this.burst.length > 0) {
       const next = this.burst.shift()!;
@@ -216,7 +216,7 @@ export class WorldSimulator implements Simulator {
   }
 
   private pickType(zone: Zone, hour: number): EventType {
-    // If a regularity covers this zone at this hour, bias hard toward its types —
+    // If a regularity covers this zone at this hour, bias hard toward its types,
     // otherwise the pattern is too sparse for the calibration channel to find.
     const covering = REGULARITIES.filter(
       (r) => r.zoneId === zone.id && (r.hourRange === null || inHourRange(hour, r.hourRange)),
@@ -276,7 +276,7 @@ export class WorldSimulator implements Simulator {
       this.rng.gauss(isReal ? 0.72 : 0.66, 0.16) + (src.kind === 'robot' ? 0.05 : 0)));
 
     let explanation: string;
-    if (reg && !isReal) explanation = `${reg.label} — ${reg.note}`;
+    if (reg && !isReal) explanation = `${reg.label}, ${reg.note}`;
     else if (reg && isReal) explanation = `${base.real} Occurred inside a known pattern window (${reg.label}), but genuine.`;
     else explanation = isReal ? base.real : base.fake;
 
@@ -361,7 +361,7 @@ export class WorldSimulator implements Simulator {
       case 'glass_break': return `Acoustic glass-break signature at ${where} (${source}).`;
       case 'tailgating': return `Two entries on one credential at ${where} (${source}).`;
       case 'loitering': return `Individual dwelling in ${where} beyond threshold (${source}).`;
-      case 'person_down': return `Possible person down in ${where} — flagged by ${source}.`;
+      case 'person_down': return `Possible person down in ${where}, flagged by ${source}.`;
       case 'fire_alarm': return `Fire panel activation for ${where}.`;
       case 'vehicle_unauthorized': return `Unregistered vehicle in ${where} (${source}).`;
       case 'perimeter_breach': return `Perimeter beam broken at ${where} (${source}).`;
@@ -376,7 +376,7 @@ export class WorldSimulator implements Simulator {
     }
   }
 
-  /** Force a specific scenario — used by the console's INJECT affordance. */
+  /** Force a specific scenario, used by the console's INJECT affordance. */
   injectAt(type: EventType, zoneId: string, ts: SimTime = this.clock): SeededEvent {
     const zone = this.world.zoneById.get(zoneId) ?? this.world.zones[0]!;
     const seeded = this.buildEvent(ts, { zone, type });
@@ -428,7 +428,7 @@ export class WorldSimulator implements Simulator {
     if (!r) return { accepted: false, etaMs: eta, reason: 'Responder not on roster.' };
 
     if (r.kind === 'robot') {
-      // Robots never decline — they get re-tasked.
+      // Robots never decline, they get re-tasked.
       if (this.world.zoneById.has(zoneId)) r.currentZoneId = zoneId;
       r.status = 'enroute';
       return { accepted: true, etaMs: eta, reason: `${r.name} re-tasked to the zone.` };
@@ -451,7 +451,7 @@ export class WorldSimulator implements Simulator {
       'on a mandated break',
       'escorting a contractor off site',
     ]);
-    return { accepted: false, etaMs: eta, reason: `${r.name} declined — ${excuse}.` };
+    return { accepted: false, etaMs: eta, reason: `${r.name} declined, ${excuse}.` };
   }
 
   releaseResponder(responderId: string): void {
@@ -521,7 +521,7 @@ export class WorldSimulator implements Simulator {
     return { action: 'dispatch', priority: priorityFromSeverity(truth.trueSeverity) };
   }
 
-  /** Recent events, truth stripped — this is what the correlate tool reads. */
+  /** Recent events, truth stripped, this is what the correlate tool reads. */
   recentEvents(limit = 60): SecurityEvent[] {
     return this.recent.slice(-limit);
   }

@@ -2,14 +2,14 @@
  * Typed transport to the SENTRY server: one thin wrapper per REST route plus
  * the SSE subscription.
  *
- * The stream is the primary channel — REST is used for control actions and the
+ * The stream is the primary channel. REST is used for control actions and the
  * cold-start snapshot. Reconnection is ours rather than EventSource's default so
  * the backoff is bounded and observable in the UI.
  */
 
 import type {
-  AgentActionKind, EvalRun, EventType, OperatorFeedback, PlaybookProposal,
-  Priority, RuleStatus, ServerEvent, Snapshot,
+  AgentActionKind, EvalRun, EventType, Experiment, OperatorFeedback,
+  PlaybookProposal, Priority, RuleStatus, ServerEvent, Snapshot,
 } from '../../../shared/types';
 
 /** Overridable before bundle load (e.g. a static build pointed at a remote API). */
@@ -20,7 +20,7 @@ export interface Ok {
   ok: true;
 }
 
-/** Body of POST /api/incidents/:id/feedback — the server stamps ts + operator. */
+/** Body of POST /api/incidents/:id/feedback, the server stamps ts + operator. */
 export interface FeedbackInput {
   verdict: OperatorFeedback['verdict'];
   correctedAction?: AgentActionKind;
@@ -122,6 +122,9 @@ export const api = {
   runEval: (opts: { eventCount: number; useClaude: boolean }): Promise<EvalRun> =>
     post<EvalRun>('/evals/run', opts),
 
+  runExperiment: (opts: { eventCount: number; seedCount: number; useClaude: boolean }): Promise<Experiment> =>
+    post<Experiment>('/evals/experiment', opts),
+
   resetMemory: (): Promise<Ok> => post<Ok>('/memory/reset'),
 };
 
@@ -135,7 +138,7 @@ export interface ConnectionInfo {
   state: ConnectionState;
   /** Consecutive failed opens. Resets to 0 on a successful open. */
   attempts: number;
-  /** Wall-clock ms the current state began — real time, not sim time. */
+  /** Wall-clock ms the current state began, real time, not sim time. */
   since: number;
   error: string | null;
 }

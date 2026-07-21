@@ -1,5 +1,5 @@
 /**
- * SENTRY — shared domain contract.
+ * SENTRY, shared domain contract.
  *
  * This file is the single source of truth for every type crossing a module
  * boundary (simulator ↔ agent ↔ memory ↔ API ↔ UI). Server and browser both
@@ -68,7 +68,7 @@ export const ALL_EVENT_TYPES: EventType[] = [
 export type SourceKind = 'robot' | 'fixed_sensor' | 'guard_report' | 'access_control' | 'tenant_call';
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  WORLD — sites, zones, responders
+//  WORLD, sites, zones, responders
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface Site {
@@ -89,7 +89,7 @@ export interface Zone {
   /** Normalised 0..1 position within the site's bounds. */
   x: number;
   y: number;
-  /** Zone ids reachable in one hop — used by `correlate` to detect movement. */
+  /** Zone ids reachable in one hop, used by `correlate` to detect movement. */
   adjacent: string[];
   /** Static risk weight 0..1, part of the *prior*, not the learned posterior. */
   baseRisk: number;
@@ -118,7 +118,7 @@ export interface Guard {
   currentZoneId: string;
   assignedIncidentId: string | null;
   /**
-   * GROUND TRUTH — never exposed to the agent. The responder model has to
+   * GROUND TRUTH, never exposed to the agent. The responder model has to
    * *learn* these from observed outcomes. Leaking these into a prompt would
    * invalidate the whole experiment.
    */
@@ -139,7 +139,7 @@ export interface Robot {
   currentZoneId: string;
   batteryPct: number;
   status: ResponderStatus;
-  /** GROUND TRUTH — sensor quality. Drives the false-alarm regularities. */
+  /** GROUND TRUTH, sensor quality. Drives the false-alarm regularities. */
   truth: {
     falsePositiveRate: number;
     degradedSensor: EventType | null;
@@ -159,7 +159,7 @@ export interface EventTruth {
   requiredSkill: Skill | null;
   /** ms after which an ignored real incident escalates (severity +1). */
   escalatesAfterMs: number;
-  /** Human-readable reason this event is real / false — powers the "ground truth" reveal. */
+  /** Human-readable reason this event is real / false, powers the "ground truth" reveal. */
   explanation: string;
   /** If this event belongs to a coordinated multi-event pattern, its id. */
   patternId: string | null;
@@ -176,7 +176,7 @@ export interface SecurityEvent {
   sourceId: string;             // robot id, sensor id, or guard id
   /** Raw sensor/observer text, as it would arrive over the wire. */
   description: string;
-  /** Device-reported confidence 0..1 — noisy, and deliberately miscalibrated. */
+  /** Device-reported confidence 0..1, noisy, and deliberately miscalibrated. */
   sensorConfidence: number;
   metadata: Record<string, string | number | boolean>;
 }
@@ -299,7 +299,7 @@ export interface Incident {
   feedback: OperatorFeedback | null;
   resolvedAt: SimTime | null;
   outcome: ResolutionOutcome | null;
-  /** Revealed only after resolution — this is what the UI shows in the ledger. */
+  /** Revealed only after resolution, this is what the UI shows in the ledger. */
   revealedTruth: EventTruth | null;
   /** Which engine produced the decision. */
   engine: 'claude' | 'reasoner';
@@ -308,10 +308,10 @@ export interface Incident {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  MEMORY — CHANNEL A: Bayesian calibration
+//  MEMORY. CHANNEL A: Bayesian calibration
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** `${siteId}|${zoneId}|${type}|${hourBucket}` — with hierarchical backoff. */
+/** `${siteId}|${zoneId}|${type}|${hourBucket}`, with hierarchical backoff. */
 export type CalibrationKey = string;
 
 export interface CalibrationCell {
@@ -327,7 +327,7 @@ export interface CalibrationCell {
   lastUpdated: SimTime;
   /** Posterior mean = alpha / (alpha + beta). */
   pReal: number;
-  /** 95% credible interval half-width — drives the "confidence" shading in the UI. */
+  /** 95% credible interval half-width, drives the "confidence" shading in the UI. */
   uncertainty: number;
 }
 
@@ -341,7 +341,7 @@ export interface CalibrationLookup {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  MEMORY — CHANNEL B: responder model (contextual bandit)
+//  MEMORY. CHANNEL B: responder model (contextual bandit)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ResponderModel {
@@ -383,7 +383,7 @@ export interface ResponderCandidate {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  MEMORY — CHANNEL C: the playbook (LLM-authored, human-approved SOPs)
+//  MEMORY. CHANNEL C: the playbook (LLM-authored, human-approved SOPs)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type RuleStatus = 'proposed' | 'active' | 'rejected' | 'retired';
@@ -415,7 +415,7 @@ export interface PlaybookRule {
   evidenceIncidentIds: string[];
   createdAt: SimTime;
   updatedAt: SimTime;
-  /** Live performance — drives auto-retirement. */
+  /** Live performance, drives auto-retirement. */
   stats: {
     applied: number;
     agreed: number;       // operator confirmed the decision this rule shaped
@@ -437,7 +437,7 @@ export interface PlaybookProposal {
   rules: PlaybookRule[];
   /** Rule ids it wants to retire, with reasons. */
   retire: Array<{ ruleId: string; reason: string }>;
-  /** The reflection agent's narrative — shown above the diff. */
+  /** The reflection agent's narrative, shown above the diff. */
   summary: string;
   /** How many resolved incidents this pass analysed. */
   incidentsAnalysed: number;
@@ -446,7 +446,7 @@ export interface PlaybookProposal {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  MEMORY — CHANNEL D: precedent retrieval
+//  MEMORY. CHANNEL D: precedent retrieval
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface Precedent {
@@ -506,7 +506,7 @@ export const EMPTY_METRICS: Metrics = {
   operatorAgreementRate: 0, truePositiveActionRate: 0, dispatchScore: 0,
 };
 
-/** A point on the learning curve — metrics over a sliding window of incidents. */
+/** A point on the learning curve, metrics over a sliding window of incidents. */
 export interface LearningPoint {
   incidentIndex: number;
   ts: SimTime;
@@ -514,7 +514,7 @@ export interface LearningPoint {
   missedCriticalRate: number;
   operatorAgreementRate: number;
   dispatchScore: number;
-  /** Memory size at this point — shows the agent accumulating knowledge. */
+  /** Memory size at this point, shows the agent accumulating knowledge. */
   calibrationCells: number;
   activeRules: number;
 }
@@ -554,6 +554,59 @@ export interface EvalRun {
   notes: string;
 }
 
+export interface SeedResult {
+  seed: number;
+  staticScore: number;
+  coldScore: number;
+  learnedScore: number;
+  /** learned − static, in points of dispatchScore. */
+  liftPoints: number;
+  /** The same lift as a percentage of the static baseline. */
+  liftPct: number;
+  /** learned − cold: the value of prior experience specifically. */
+  priorExperiencePoints: number;
+  missedCriticalStatic: number;
+  missedCriticalLearned: number;
+  falseDispatchStatic: number;
+  falseDispatchLearned: number;
+}
+
+export interface ExperimentSummary {
+  /** Fraction of seeds where learned strictly beat static. */
+  winRate: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  meanLiftPoints: number;
+  /** Sample standard deviation of the per-seed lift. */
+  sdLiftPoints: number;
+  /** Half-width of the 95% confidence interval on the mean. */
+  ci95Points: number;
+  ciLowPoints: number;
+  ciHighPoints: number;
+  meanLiftPct: number;
+  /** Mean of learned − cold: prior experience, isolated from online learning. */
+  meanPriorExperiencePoints: number;
+  /**
+   * True when the whole 95% interval sits above zero. This is the sentence the
+   * README is allowed to make; if it is false, the honest claim is "no
+   * detectable difference at this sample size".
+   */
+  significant: boolean;
+}
+
+export interface Experiment {
+  id: string;
+  createdAt: number;
+  baseSeed: number;
+  eventCount: number;
+  engine: 'claude' | 'reasoner';
+  seeds: SeedResult[];
+  summary: ExperimentSummary;
+  durationMs: number;
+  notes: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  API / STREAM CONTRACT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -584,7 +637,7 @@ export interface EngineStatus {
 
 /**
  * Responders as the client is allowed to see them. `truth` is stripped at the
- * type level, not by convention — the roster view must show what the responder
+ * type level, not by convention, the roster view must show what the responder
  * model has *learned*, never the hidden parameters it is learning.
  */
 export type PublicGuard = Omit<Guard, 'truth'>;

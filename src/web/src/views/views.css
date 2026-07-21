@@ -236,6 +236,60 @@
 
 .eval-table-body { padding: 0; max-height: 340px; }
 
+.eval-note {
+  max-width: 42ch;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ── Multi-world experiment ─────────────────────────────────────────────── */
+
+.exp-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+
+/* Every world gets a row. A mean with no distribution behind it is a claim
+   asking to be taken on trust, which is the opposite of the point. */
+.exp-strip { list-style: none; margin: 0; padding: 0; }
+
+.exp-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 54px;
+  gap: var(--s3);
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: var(--hair) solid var(--line);
+}
+.exp-row:last-child { border-bottom: none; }
+
+.exp-seed { font-size: 10px; color: var(--text-muted); }
+
+.exp-bar { position: relative; height: 7px; background: var(--paper-3); display: block; }
+.exp-bar-mid { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--line-strong); }
+.exp-bar-fill { position: absolute; top: 0; bottom: 0; }
+.exp-bar-fill.is-pos { background: var(--accent); }
+.exp-bar-fill.is-neg { background: var(--status-crit); }
+
+.exp-val { font-size: 11px; text-align: right; color: var(--text-primary); }
+
+.eval-method {
+  margin-top: var(--s4);
+  padding: var(--s4);
+  background: var(--surface-sunken);
+  border-left: 2px solid var(--line-strong);
+}
+.eval-method p {
+  margin: var(--s2) 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  max-width: 92ch;
+}
+
 /* ── Roster ─────────────────────────────────────────────────────────────── */
 
 .roster-body { padding: 0; }

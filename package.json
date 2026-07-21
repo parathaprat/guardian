@@ -15,7 +15,8 @@
     "start": "tsx src/server/index.ts",
     "typecheck": "tsc --noEmit",
     "eval": "tsx src/server/eval/cli.ts",
-    "verify": "npm run typecheck && npm run eval -- --seed 42 --events 400 --assert && npm run eval -- --seed 7 --events 400 --assert && npm run eval -- --seed 20260721 --events 400 --assert"
+    "verify": "npm run typecheck && npm run eval -- --seeds 20 --events 400 --assert",
+    "experiment": "tsx src/server/eval/cli.ts --seeds 20 --events 400"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.4",

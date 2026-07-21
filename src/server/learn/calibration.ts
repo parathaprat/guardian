@@ -1,5 +1,5 @@
 /**
- * CHANNEL A — Bayesian calibration.
+ * CHANNEL A. Bayesian calibration.
  *
  * Beta-Bernoulli posteriors over P(event is real), maintained at three
  * granularities simultaneously. Every observation folds into all three, so the
@@ -15,7 +15,7 @@ import type { CalibrationStore } from '../contracts';
 
 /**
  * Prior belief that an event of this type is real, before any site evidence.
- * Deliberately miscalibrated relative to the simulator's regularities — the
+ * Deliberately miscalibrated relative to the simulator's regularities, the
  * whole point is that observation has to move these.
  */
 const TYPE_PRIOR: Record<EventType, number> = {
@@ -41,7 +41,7 @@ const FALLBACK_PRIOR = 0.35;
 
 /**
  * Prior concentration (total pseudo-count). Parameterising as alpha0 = k·p,
- * beta0 = k·(1-p) keeps the prior *mean* exactly at the type prior — an
+ * beta0 = k·(1-p) keeps the prior *mean* exactly at the type prior, an
  * additive Beta(1,1) base would drag every type toward 0.5 and flatten the
  * distinctions the grid is meant to show. Kept weak at ~3 pseudo-observations
  * so four real ones visibly move the cell.
@@ -89,7 +89,7 @@ export class Calibration implements CalibrationStore {
     const siteType = this.map.get(calibrationKey(siteId, null, type, null));
     if (siteType && siteType.observations >= MIN_OBS_SITE) return asLookup(siteType, 'site_type');
 
-    // Nothing known. Answer from the type prior without materialising a cell —
+    // Nothing known. Answer from the type prior without materialising a cell,
     // lookups must never pollute the grid the UI renders.
     const p = priorFor(type);
     const alpha = 1 + PRIOR_CONCENTRATION * p;

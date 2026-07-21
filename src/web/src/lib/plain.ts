@@ -7,14 +7,14 @@
  *
  * So the vocabulary is split in two, deliberately:
  *
- *   - The *operational* words live here and are what the console leads with —
+ *   - The *operational* words live here and are what the console leads with,
  *     "Send a responder", "Almost certainly nothing", "8 in 10 past alarms here
  *     were real".
  *   - The *technical* words (action enums, weights, posteriors, tool calls) are
  *     still all present, one disclosure away, because a security director's
  *     engineer will absolutely want to audit them.
  *
- * Nothing here reformats data the operator needs to act on — it only renames it.
+ * Nothing here reformats data the operator needs to act on, it only renames it.
  */
 
 import type {
@@ -43,7 +43,7 @@ export const ACTION_SHORT: Record<AgentActionKind, string> = {
 /** One sentence of consequence: what is happening in the building right now. */
 export const ACTION_MEANS: Record<AgentActionKind, string> = {
   dispatch: 'A responder is on the way to the zone.',
-  escalate: 'Supervisor notified and a responder committed — this sits at the top of the queue.',
+  escalate: 'Supervisor notified and a responder committed. This sits at the top of the queue.',
   monitor: 'Nobody has been sent. Sentry is holding this open and watching for a second signal.',
   suppress: 'Closed without sending anyone. Sentry has learned this pattern here is usually nothing.',
 };
@@ -70,8 +70,8 @@ export function beliefGapNote(sensor: number, agent: number): string {
   if (Math.abs(gap) < 0.08) return 'Sentry agrees with the device on this one.';
   const pts = Math.round(Math.abs(gap) * 100);
   return gap < 0
-    ? `Sentry trusts this ${pts} points less than the device claims — past alarms here mostly came to nothing.`
-    : `Sentry trusts this ${pts} points more than the device claims — the history here says take it seriously.`;
+    ? `Sentry trusts this ${pts} points less than the device claims. Past alarms here mostly came to nothing.`
+    : `Sentry trusts this ${pts} points more than the device claims. The history here says take it seriously.`;
 }
 
 // ── Where and what ──────────────────────────────────────────────────────────
@@ -126,7 +126,7 @@ export const OUTCOME_PLAIN: Record<ResolutionOutcome, string> = {
 
 /**
  * Was the call right? A false alarm the agent stood down on is a *win*, not a
- * failure — grading purely on `outcome` would score restraint as an error.
+ * failure, grading purely on `outcome` would score restraint as an error.
  */
 export function wasRight(inc: Incident): boolean {
   const acted = inc.decision?.action === 'dispatch' || inc.decision?.action === 'escalate';

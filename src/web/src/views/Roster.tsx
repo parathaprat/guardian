@@ -1,5 +1,5 @@
 /**
- * ROSTER — guards and robots as learned assets.
+ * ROSTER, guards and robots as learned assets.
  *
  * Every number in the "learned" columns came from watching dispatches resolve.
  * None of it is configured, and the hidden parameters the simulator uses to
@@ -30,8 +30,8 @@ export default function Roster() {
   }), [world.guards, byId]);
 
   const exploring = models.filter((m) => m.exploring).length;
-  const zoneName = (id: string) => world.zones.find((z) => z.id === id)?.code ?? '—';
-  const siteCode = (id: string) => world.sites.find((s) => s.id === id)?.code ?? '—';
+  const zoneName = (id: string) => world.zones.find((z) => z.id === id)?.code ?? '-';
+  const siteCode = (id: string) => world.sites.find((s) => s.id === id)?.code ?? '-';
 
   return (
     <div className="view scroll">
@@ -101,10 +101,10 @@ export default function Roster() {
                             <ConfidenceBar value={m.pAccept} className="roster-meter" />
                             <span className="mono">{fmtPct(m.pAccept)}</span>
                           </div>
-                        ) : <span className="muted">—</span>}
+                        ) : <span className="muted">-</span>}
                       </td>
-                      <td className="r mono">{m && m.responseCount > 0 ? fmtDuration(m.responseMeanMs) : '—'}</td>
-                      <td className="r mono">{m && m.dispatches > 0 ? fmtPct(m.pResolve) : '—'}</td>
+                      <td className="r mono">{m && m.responseCount > 0 ? fmtDuration(m.responseMeanMs) : '-'}</td>
+                      <td className="r mono">{m && m.dispatches > 0 ? fmtPct(m.pResolve) : '-'}</td>
                       <td className="r mono">
                         {m?.dispatches ?? 0}
                         {m?.exploring && <Pill tone="accent" className="roster-explore">exploring</Pill>}
@@ -154,7 +154,7 @@ export default function Roster() {
         <div className="view-note">
           A degraded sensor on one of these units is a real fault in this world, and the agent is
           not told which. It has to infer it from the fact that a particular unit's alarms keep
-          resolving false — which is exactly what the calibration channel is for.
+          resolving false, which is exactly what the calibration channel is for.
         </div>
       </section>
     </div>

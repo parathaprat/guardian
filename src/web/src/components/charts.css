@@ -35,7 +35,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Values printed directly on marks — text never wears the series colour. */
+/* Values printed directly on marks, text never wears the series colour. */
 .chart-value-text {
   fill: var(--text-secondary);
   font-family: var(--font-mono);
@@ -167,7 +167,7 @@
 .chart-seq-strip { display: flex; }
 .chart-seq-strip > i { width: 22px; height: 8px; display: block; }
 
-/* Key + label pair. The sized box is the swatch itself, not the whole item —
+/* Key + label pair. The sized box is the swatch itself, not the whole item,
    sizing the item collapsed the two labels onto one another. */
 .chart-seq-swatch {
   display: inline-flex;

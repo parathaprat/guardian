@@ -1,5 +1,5 @@
 /**
- * CHANNEL B — the responder model, as a contextual bandit.
+ * CHANNEL B, the responder model, as a contextual bandit.
  *
  * Per responder we keep Beta posteriors on P(accept) and P(resolves correctly)
  * plus Welford running stats on response time. Ranking blends those with the
@@ -17,7 +17,7 @@ import type {
 import { inHourRange, simHourOf } from '../../shared/types';
 import type { ResponderStore, WorldState } from '../contracts';
 
-/** Structural shape of `util/rng`'s Rng — injected so evals can be reproducible. */
+/** Structural shape of `util/rng`'s Rng, injected so evals can be reproducible. */
 export interface RandomSource {
   next(): number;
 }
@@ -319,7 +319,7 @@ export class Responders implements ResponderStore {
     // on the Roster screen for anyone who wants the arithmetic.
     if (explore && model.exploring) {
       parts.push(
-        `chosen with only ${model.dispatches} previous dispatch${model.dispatches === 1 ? '' : 'es'} on record — ` +
+        `chosen with only ${model.dispatches} previous dispatch${model.dispatches === 1 ? '' : 'es'} on record, ` +
         `Sentry gives under-used responders a turn rather than always sending the same person ` +
         `(${pct(pAccept)} chance of accepting)`,
       );
@@ -344,7 +344,7 @@ export class Responders implements ResponderStore {
         ? `trained for ${SKILL_LABEL[requiredSkill]}`
         : `not trained for ${SKILL_LABEL[requiredSkill]}`);
     }
-    if (isRobot) parts.push('robot — can observe, cannot intervene');
+    if (isRobot) parts.push('robot, can observe, cannot intervene');
 
     return parts.join(', ');
   }

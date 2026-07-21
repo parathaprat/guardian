@@ -1,8 +1,8 @@
 /**
- * CHANNEL D — precedent retrieval.
+ * CHANNEL D, precedent retrieval.
  *
  * A bounded ring buffer of resolved incidents with a weighted feature
- * similarity. Cheap, explainable, and — unlike an embedding index — it can tell
+ * similarity. Cheap, explainable, and (unlike an embedding index) it can tell
  * an ops manager exactly why a case was retrieved.
  *
  * Only post-resolution facts are indexed (action taken, outcome). EventTruth is
@@ -51,7 +51,7 @@ const FAMILY: Record<EventType, string> = {
 const OUTCOME_PHRASE: Record<ResolutionOutcome, string> = {
   true_positive: 'confirmed real',
   false_alarm: 'confirmed false alarm',
-  missed: 'missed — escalated on its own',
+  missed: 'missed, escalated on its own',
   declined: 'responder declined',
   unresolved: 'unresolved',
 };

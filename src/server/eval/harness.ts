@@ -1,5 +1,5 @@
 /**
- * SENTRY — A/B eval harness.
+ * SENTRY, A/B eval harness.
  *
  * This file is the evidence behind the product claim. It is written to be
  * attacked: an event stream is generated exactly once and replayed verbatim by
@@ -62,7 +62,7 @@ const evalRunId = makeIdFactory('EVR');
 /**
  * The rule table a real ops centre ships on day one: a fixed severity per event
  * type, a fixed action per severity band, nearest available body. It has no
- * idea that dock camera 4 cries wolf every night at 02:00, and it never will —
+ * idea that dock camera 4 cries wolf every night at 02:00, and it never will,
  * which is precisely the gap the learned arm has to prove it closes.
  */
 const STATIC_SEVERITY: Record<EventType, Severity> = {
@@ -145,7 +145,7 @@ function staticDecide(event: SecurityEvent, world: WorldState, sim: Simulator): 
       confidence: 0.5,
       falseAlarmProbability: clamp01(1 - event.sensorConfidence),
       responderId: null,
-      instruction: 'No responder available — escalate to shift supervisor.',
+      instruction: 'No responder available, escalate to shift supervisor.',
       rationale: 'Static policy escalates when the roster has nobody free at this site.',
       evidence,
     };
@@ -158,7 +158,7 @@ function staticDecide(event: SecurityEvent, world: WorldState, sim: Simulator): 
     responderId: responder.id,
     instruction: `Respond to ${event.zoneId} and report. Severity ${severity} under standing policy.`,
     rationale: `Static policy dispatches every severity-${severity} event to the nearest available responder`
-      + `${skill ? ` with the ${skill} skill` : ''}. Responder chosen on ETA alone — no acceptance or reliability history.`,
+      + `${skill ? ` with the ${skill} skill` : ''}. Responder chosen on ETA alone, no acceptance or reliability history.`,
     evidence,
   };
 }
@@ -320,7 +320,7 @@ interface ArmSpec {
 
 /**
  * Replay `stream` through one arm. Every event is decided, offered, resolved and
- * only then learned from — in that order — which is what makes the numbers
+ * only then learned from (in that order) which is what makes the numbers
  * defensible as *predictions* rather than fits.
  */
 async function runArm(spec: ArmSpec, stream: SeededEvent[]): Promise<Incident[]> {
@@ -478,7 +478,7 @@ function clamp01(n: number): number {
  * structuredClone would strip the prototypes and leave us with method-less
  * husks, and the stores expose no serialise/load pair, so we copy own fields and
  * re-point anything that is a world entity (guard, robot, zone, site) at the
- * eval world's instance of it — matched by id, which the id factories make
+ * eval world's instance of it, matched by id, which the id factories make
  * stable across worlds. Everything else is copied by value, so the eval and the
  * live console cannot observe each other.
  */
@@ -567,7 +567,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
   const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
   const useClaude = wantClaude && apiKey.length > 0;
   if (wantClaude && !useClaude) {
-    caveats.push('ANTHROPIC_API_KEY is not set — the Claude request was ignored and both agent arms ran on the deterministic Reasoner.');
+    caveats.push('ANTHROPIC_API_KEY is not set, the Claude request was ignored and both agent arms ran on the deterministic Reasoner.');
   }
 
   const cap = useClaude ? CLAUDE_EVENT_CAP : REASONER_EVENT_CAP;
@@ -603,7 +603,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
     })
     : new ReasonerAgent();
 
-  // ── 3. Arm A — static table, no memory.
+  // ── 3. Arm A, static table, no memory.
   const staticSim = new WorldSimulator(opts.seed);
   const staticIncidents = await runArm({
     id: 'static',
@@ -614,7 +614,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
     agent: null,
   }, stream);
 
-  // ── 4. Arm B — the real agent, memory enabled but empty.
+  // ── 4. Arm B, the real agent, memory enabled but empty.
   const coldSim = new WorldSimulator(opts.seed);
   const coldMemory = createMemory(coldSim.world, t0, opts.seed);
   const coldIncidents = await runArm({
@@ -626,7 +626,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
     agent,
   }, stream);
 
-  // ── 5. Arm C — the real agent, memory that has already seen this building.
+  // ── 5. Arm C, the real agent, memory that has already seen this building.
   const learnedSim = new WorldSimulator(opts.seed);
   let learnedMemory: Memory;
   let provenance: string;
@@ -794,18 +794,18 @@ function buildNotes(args: {
   const lines: string[] = [];
 
   lines.push(`HELD CONSTANT across all three arms`);
-  lines.push(`• Event stream — WorldSimulator(seed=${args.seed}).generate(${args.eventCount}) is called once; every arm replays that exact list, in order, against the same hidden ground truth.`);
-  lines.push(`• World — sites, zones, roster and every responder's hidden traits are rebuilt from seed ${args.seed} for each arm, so no arm inherits another arm's responder fatigue or assignments.`);
-  lines.push(`• Scoring — simulator.resolve() is the only consumer of ground truth, and it is identical for every arm.`);
-  lines.push(`• Agreement baseline — the oracle policy stands in for the operator, since an eval has no human to confirm or override.`);
+  lines.push(`• Event stream. WorldSimulator(seed=${args.seed}).generate(${args.eventCount}) is called once; every arm replays that exact list, in order, against the same hidden ground truth.`);
+  lines.push(`• World, sites, zones, roster and every responder's hidden traits are rebuilt from seed ${args.seed} for each arm, so no arm inherits another arm's responder fatigue or assignments.`);
+  lines.push(`• Scoring, simulator.resolve() is the only consumer of ground truth, and it is identical for every arm.`);
+  lines.push(`• Agreement baseline, the oracle policy stands in for the operator, since an eval has no human to confirm or override.`);
   lines.push('');
   lines.push(`VARIED (the independent variable): the memory behind the judgment layer.`);
-  lines.push(`• static  — fixed severity table + nearest-ETA responder. No memory at all.`);
-  lines.push(`• cold    — ${engineName} judgment layer, all four memory channels on but empty at t=0.`);
-  lines.push(`• learned — the same judgment layer, memory ${args.provenance}.`);
+  lines.push(`• static , fixed severity table + nearest-ETA responder. No memory at all.`);
+  lines.push(`• cold   , ${engineName} judgment layer, all four memory channels on but empty at t=0.`);
+  lines.push(`• learned, the same judgment layer, memory ${args.provenance}.`);
   lines.push('');
   lines.push(`ONLINE LEARNING`);
-  lines.push(`Within every arm each event is decided first, resolved second, and folded into that arm's own memory third. No arm can see an outcome before it has committed to a decision, so the cold arm also improves during the run — the learned-vs-cold gap is the value of prior experience, and the learned-vs-static gap is the headline delta.`);
+  lines.push(`Within every arm each event is decided first, resolved second, and folded into that arm's own memory third. No arm can see an outcome before it has committed to a decision, so the cold arm also improves during the run, the learned-vs-cold gap is the value of prior experience, and the learned-vs-static gap is the headline delta.`);
   lines.push('');
   lines.push(`THREATS TO VALIDITY`);
   lines.push(`• Not paired: resolve() and offerDispatch() draw from each arm's simulator RNG, and different arms make different decisions, so accept/arrival rolls diverge between arms. responderAcceptRate and medianResponseMs carry a few points of noise; falseDispatchRate and missedCriticalRate do not depend on those rolls.`);

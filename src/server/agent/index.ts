@@ -1,7 +1,7 @@
 /**
  * Engine selection and the status readout the console header shows.
  *
- * The product is fully functional with no API key — `ReasonerAgent` is a real
+ * The product is fully functional with no API key, `ReasonerAgent` is a real
  * expected-cost policy, not a stub. The key upgrades the judgment layer and
  * unlocks LLM-authored playbook proposals; it is never a prerequisite.
  */
@@ -40,7 +40,7 @@ export function createAgent(): DispatchAgent {
     state.model = 'local-reasoner';
     state.effort = 'n/a';
     state.note =
-      'No ANTHROPIC_API_KEY set — running the deterministic Reasoner. Every feature works; ' +
+      'No ANTHROPIC_API_KEY set, running the deterministic Reasoner. Every feature works; ' +
       'decisions come from an explicit expected-cost policy instead of Claude. Add a key to .env to upgrade.';
     return new ReasonerAgent();
   }

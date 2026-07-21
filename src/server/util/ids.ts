@@ -1,7 +1,7 @@
 /**
  * Monotonic, prefix-scoped id generation.
  *
- * Ids must be a pure function of how many have been issued — the replay harness
+ * Ids must be a pure function of how many have been issued, the replay harness
  * builds a fresh factory per run so two arms of an A/B eval see byte-identical
  * event ids.
  */

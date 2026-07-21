@@ -1,5 +1,5 @@
 /**
- * SENTRY — the live operations engine.
+ * SENTRY, the live operations engine.
  *
  * Owns the running world, the memory, the agent, and the incident book, and
  * broadcasts everything as a typed `ServerEvent` stream.
@@ -24,9 +24,10 @@ import { requiredSkillFor } from './agent/tools';
 import { runReflection } from './agent/reflect';
 import { computeLearningCurve, computeMetrics } from './eval/metrics';
 import { runEval } from './eval/harness';
+import { runExperiment } from './eval/experiment';
 import { logIncident } from './util/eventlog';
 import { makeIdFactory } from './util/ids';
-import type { EvalRun } from '../shared/types';
+import type { EvalRun, Experiment } from '../shared/types';
 
 const TICK_MS = 250;
 const MAX_IN_FLIGHT = 3;
@@ -55,7 +56,7 @@ export class OpsEngine {
   private timer: NodeJS.Timeout | null = null;
   /**
    * 64× puts roughly one sim-hour into a real minute, which lands the event rate
-   * at ~5–15/min — dense enough that the console feels live, slow enough that an
+   * at ~5–15/min, dense enough that the console feels live, slow enough that an
    * operator can actually read a decision before the next one arrives.
    */
   private speed = 64;
@@ -148,7 +149,7 @@ export class OpsEngine {
 
   resetMemory(): void {
     this.memory.reset();
-    this.emit({ type: 'toast', data: { level: 'info', message: 'Memory wiped — the agent is learning from zero.' } });
+    this.emit({ type: 'toast', data: { level: 'info', message: 'Memory wiped, the agent is learning from zero.' } });
     this.emit({ type: 'snapshot', data: this.snapshot() });
   }
 
@@ -311,7 +312,7 @@ export class OpsEngine {
         durationMs: 0, label: 'Decision failed',
         detail: err instanceof Error ? err.message : String(err),
       });
-      // An undecided incident is still a real incident — hold it for a human.
+      // An undecided incident is still a real incident, hold it for a human.
       this.schedule(incident.id, 5 * 60_000);
     }
 
@@ -473,7 +474,7 @@ export class OpsEngine {
     });
   }
 
-  // ── operator feedback — the highest-value training signal ─────────────────
+  // ── operator feedback, the highest-value training signal ─────────────────
 
   feedback(incidentId: string, fb: OperatorFeedback): void {
     const incident = this.incidents.get(incidentId);
@@ -484,7 +485,7 @@ export class OpsEngine {
     const firedRules = incident.decision?.evidence.filter((e) => e.kind === 'playbook').map((e) => e.refId) ?? [];
 
     if (fb.verdict === 'override' && fb.correctedAction) {
-      // An override is not a note — the operator's call is executed for real.
+      // An override is not a note, the operator's call is executed for real.
       if (incident.decision) {
         incident.decision = {
           ...incident.decision,
@@ -529,7 +530,7 @@ export class OpsEngine {
           level: 'info',
           message: proposal.rules.length + proposal.retire.length === 0
             ? 'Reflection found no change worth proposing yet.'
-            : `Reflection drafted ${proposal.rules.length} rule change(s) and ${proposal.retire.length} retirement(s) — awaiting approval.`,
+            : `Reflection drafted ${proposal.rules.length} rule change(s) and ${proposal.retire.length} retirement(s), awaiting approval.`,
         },
       });
       return proposal;
@@ -559,6 +560,23 @@ export class OpsEngine {
     const seeded = this.sim.injectAt(type, zoneId);
     this.ingest(seeded);
     this.drainQueue();
+  }
+
+  /**
+   * The multi-world experiment. Deliberately does NOT pass `liveMemory`: the
+   * point is to measure the learning protocol across independent worlds, and a
+   * memory trained in this console's world would leak one world's specifics
+   * into all twenty.
+   */
+  async runExperimentNow(opts: {
+    eventCount: number; seedCount: number; useClaude: boolean;
+  }): Promise<Experiment> {
+    return runExperiment({
+      baseSeed: this.seed,
+      seedCount: opts.seedCount,
+      eventCount: opts.eventCount,
+      useClaude: opts.useClaude,
+    });
   }
 
   async runEvalNow(opts: { eventCount: number; useClaude: boolean }): Promise<EvalRun> {

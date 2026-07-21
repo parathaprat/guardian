@@ -1,5 +1,5 @@
 /**
- * The agent's instruments — six evidence tools plus one terminal tool.
+ * The agent's instruments, six evidence tools plus one terminal tool.
  *
  * Every tool returns a one-line `label` for the trace, a JSON-serialisable
  * `result` (what the model reads back), and `evidence` citing exactly which
@@ -37,7 +37,7 @@ export interface TypeProfile {
  * accumulates, which is what the learning curve is supposed to show.
  */
 export const TYPE_PROFILE: Record<EventType, TypeProfile> = {
-  motion_detected:      { prior: 0.16, severity: 2, skill: null,             note: 'highest nuisance rate of any signal — wildlife, HVAC plumes, rain on lenses' },
+  motion_detected:      { prior: 0.16, severity: 2, skill: null,             note: 'highest nuisance rate of any signal, wildlife, HVAC plumes, rain on lenses' },
   door_forced:          { prior: 0.62, severity: 4, skill: 'armed',          note: 'strong intrusion indicator; rarely benign outside maintenance windows' },
   door_propped:         { prior: 0.58, severity: 2, skill: 'access_control', note: 'usually policy violation rather than intrusion, but it defeats the perimeter' },
   glass_break:          { prior: 0.48, severity: 4, skill: 'armed',          note: 'acoustic sensors false on dropped pallets and thunder' },
@@ -48,10 +48,10 @@ export const TYPE_PROFILE: Record<EventType, TypeProfile> = {
   vehicle_unauthorized: { prior: 0.41, severity: 3, skill: null,             note: 'plate/permit mismatches are frequently stale-database errors' },
   perimeter_breach:     { prior: 0.50, severity: 4, skill: 'armed',          note: 'fence-line sensors correlate strongly with adjacent-zone motion when real' },
   robot_obstruction:    { prior: 0.64, severity: 1, skill: 'technical',      note: 'almost always real and almost never important' },
-  camera_offline:       { prior: 0.68, severity: 2, skill: 'technical',      note: 'real, but read it as coverage loss — check what it was watching' },
+  camera_offline:       { prior: 0.68, severity: 2, skill: 'technical',      note: 'real, but read it as coverage loss, check what it was watching' },
   panic_button:         { prior: 0.58, severity: 5, skill: 'armed',          note: 'life-safety; pocket presses exist but are not worth the gamble' },
   badge_anomaly:        { prior: 0.45, severity: 3, skill: 'access_control', note: 'cloned-credential signal; correlate with the badge holder’s expected location' },
-  package_theft:        { prior: 0.38, severity: 2, skill: null,             note: 'usually after the fact — evidence preservation matters more than speed' },
+  package_theft:        { prior: 0.38, severity: 2, skill: null,             note: 'usually after the fact, evidence preservation matters more than speed' },
   noise_complaint:      { prior: 0.29, severity: 1, skill: 'de_escalation',  note: 'tenant-reported, subjective, and rarely a security matter' },
 };
 
@@ -89,7 +89,7 @@ export const TOOL_NAMES = {
 } as const;
 
 /**
- * Order is frozen — the tool block renders before `system`, so any reordering
+ * Order is frozen, the tool block renders before `system`, so any reordering
  * would invalidate the prompt cache for every incident that follows.
  */
 export const TOOL_DEFS: ToolDef[] = [
@@ -144,7 +144,7 @@ export const TOOL_DEFS: ToolDef[] = [
     name: TOOL_NAMES.playbook,
     description:
       'Standing operating procedures that match this event. Rules are authored by the reflection pass ' +
-      'and approved by a human supervisor, so an active rule carries real authority — but each one ' +
+      'and approved by a human supervisor, so an active rule carries real authority, but each one ' +
       'reports its live precision, and a rule below ~0.6 precision should not override fresh evidence. ' +
       'falseAlarmMultiplier above 1 means the rule believes this pattern is noisier than the raw ' +
       'calibration suggests; below 1 means it is more often real.',
@@ -155,7 +155,7 @@ export const TOOL_DEFS: ToolDef[] = [
     description:
       'Who can actually take this call, ranked. Combines simulator-supplied availability and travel time ' +
       'with the learned responder model: pAccept is the posterior probability this responder accepts a ' +
-      'dispatch, learned from their own history, not asserted. Call this before any dispatch — a plan to ' +
+      'dispatch, learned from their own history, not asserted. Call this before any dispatch, a plan to ' +
       'dispatch nobody is an escalation in disguise.',
     input_schema: {
       type: 'object',
@@ -188,7 +188,7 @@ export const TOOL_DEFS: ToolDef[] = [
     description:
       'Commit the dispatch decision. Call this exactly once, last, after you have gathered evidence. ' +
       'responder_id must be a real responder id when action is "dispatch", and the empty string otherwise. ' +
-      'recheck_after_minutes only matters for "monitor" — use 0 for every other action.',
+      'recheck_after_minutes only matters for "monitor", use 0 for every other action.',
     strict: true,
     input_schema: {
       type: 'object',
@@ -320,7 +320,7 @@ export interface ToolOutcome {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const COLD_NOTE =
-  'No memory available — this arm runs cold. Decide from the event text, the device-reported sensor ' +
+  'No memory available, this arm runs cold. Decide from the event text, the device-reported sensor ' +
   'confidence and static site facts only. Do not assume a history you cannot see.';
 
 function cold(): ColdResult {
@@ -435,7 +435,7 @@ function checkZoneHistory(input: Record<string, unknown>, ctx: AgentContext): To
   const evidence: EvidenceRef[] = [{
     kind: 'calibration',
     refId: lookup.key,
-    label: `${zoneCode} · ${EVENT_LABELS[type]} — ${pct(lookup.pReal)} real over ${lookup.observations} resolved`,
+    label: `${zoneCode} · ${EVENT_LABELS[type]}, ${pct(lookup.pReal)} real over ${lookup.observations} resolved`,
     weight: round(clamp((lookup.pReal - 0.5) * 2, -1, 1)),
     detail: reading,
   }];
@@ -450,7 +450,7 @@ function checkZoneHistory(input: Record<string, unknown>, ctx: AgentContext): To
 function readCalibration(lookup: CalibrationLookup, zoneCode: string, type: EventType): string {
   const label = EVENT_LABELS[type].toLowerCase();
   if (lookup.level === 'prior' || lookup.observations === 0) {
-    return `No resolved ${label} alerts have been folded into ${zoneCode} yet — this is the cold prior, worth little.`;
+    return `No resolved ${label} alerts have been folded into ${zoneCode} yet, this is the cold prior, worth little.`;
   }
   const thin = lookup.observations < 6 ? ' The sample is still thin, so do not over-trust it.' : '';
   const spread = `±${pct(lookup.uncertainty)}`;
@@ -481,7 +481,7 @@ function recallSimilar(input: Record<string, unknown>, ctx: AgentContext): ToolO
   }));
 
   const reading = matches.length === 0
-    ? 'Nothing comparable has been resolved yet — this is new ground.'
+    ? 'Nothing comparable has been resolved yet, this is new ground.'
     : summarisePrecedents(matches);
 
   const evidence: EvidenceRef[] = matches.map((m) => ({
@@ -515,7 +515,7 @@ function summarisePrecedents(matches: PrecedentMatch[]): string {
   const fake = matches.filter((m) => m.outcome === 'false_alarm').length;
   const missed = matches.filter((m) => m.outcome === 'missed').length;
   const parts = [`${matches.length} comparable incident${matches.length === 1 ? '' : 's'}: ${real} were real, ${fake} were noise.`];
-  if (missed > 0) parts.push(`${missed} of them was under-actioned and escalated afterwards — that is the failure mode to avoid here.`);
+  if (missed > 0) parts.push(`${missed} of them was under-actioned and escalated afterwards, that is the failure mode to avoid here.`);
   return parts.join(' ');
 }
 
@@ -566,10 +566,10 @@ function consultPlaybook(ctx: AgentContext): ToolOutcome {
   }));
 
   const reading = rules.length === 0
-    ? 'No standing procedure covers this event — judge it on evidence.'
+    ? 'No standing procedure covers this event, judge it on evidence.'
     : `${rules.length} rule${rules.length === 1 ? '' : 's'} match, most specific first. ${rules[0].title} says "${rules[0].action}".` +
       (rules[0].applied >= 5 && rules[0].precision < 0.6
-        ? ` Note its live precision is only ${pct(rules[0].precision)} over ${rules[0].applied} applications — it is decaying.`
+        ? ` Note its live precision is only ${pct(rules[0].precision)} over ${rules[0].applied} applications, it is decaying.`
         : '');
 
   const evidence: EvidenceRef[] = rules.map((r) => ({
@@ -624,7 +624,7 @@ function getResponders(input: Record<string, unknown>, ctx: AgentContext): ToolO
         requiredSkill,
         learned: false,
         options,
-        note: 'Responder model unavailable — this arm runs cold, so candidates are ordered by travel time alone. ' +
+        note: 'Responder model unavailable, this arm runs cold, so candidates are ordered by travel time alone. ' +
           'Nothing is known about who actually accepts calls.',
       } satisfies ResponderResult,
       evidence: [],
@@ -650,7 +650,7 @@ function getResponders(input: Record<string, unknown>, ctx: AgentContext): ToolO
     ? [{
         kind: 'responder',
         refId: top.responderId,
-        label: `${top.name} — ${top.etaMinutes} min out, accepts ${pct(top.pAccept ?? 0.5)} of dispatches`,
+        label: `${top.name}, ${top.etaMinutes} min out, accepts ${pct(top.pAccept ?? 0.5)} of dispatches`,
         weight: round(clamp(((top.pAccept ?? 0.5) - 0.5) * 1.2, -1, 1)),
         detail: top.reason,
       }]
@@ -663,7 +663,7 @@ function getResponders(input: Record<string, unknown>, ctx: AgentContext): ToolO
       learned: true,
       options,
       note: options.length === 0
-        ? 'Nobody is available with that skill. Dispatch is not on the table — escalate if this needs a body on scene.'
+        ? 'Nobody is available with that skill. Dispatch is not on the table, escalate if this needs a body on scene.'
         : 'Ranking is Thompson-sampled over the learned acceptance and resolution posteriors, so it explores under-tested responders on purpose.',
     } satisfies ResponderResult,
     evidence,
@@ -790,7 +790,7 @@ export function decisionFromSubmit(
         instruction = `${instruction} (Auto-assigned ${nearest.responder.name}, nearest available.)`.trim();
       } else {
         action = 'escalate';
-        instruction = `${instruction} (No responder available — routed to the supervisor.)`.trim();
+        instruction = `${instruction} (No responder available, routed to the supervisor.)`.trim();
       }
     }
   }

@@ -3,7 +3,7 @@
  *
  * These interfaces are the seams between the simulator, the memory layer, and
  * the agent. They exist so the agent can be run against *either* the live world
- * or a replay harness with no code change — which is what makes the A/B eval
+ * or a replay harness with no code change, which is what makes the A/B eval
  * honest.
  */
 
@@ -40,7 +40,7 @@ export interface Simulator {
   etaMs(responderId: string, zoneId: string): number;
   /**
    * Simulate offering a dispatch. Resolves the accept/decline roll and, if
-   * accepted, the arrival time — using the responder's *hidden* truth.
+   * accepted, the arrival time, using the responder's *hidden* truth.
    */
   offerDispatch(responderId: string, incidentId: string, zoneId: string): {
     accepted: boolean;
@@ -139,7 +139,7 @@ export interface AgentContext {
   /** Responder availability + ETA, supplied by the simulator. */
   candidates(requiredSkill: Skill | null): Array<{ responder: Responder; etaMs: number; skillMatch: boolean }>;
   correlate(event: SecurityEvent, windowMs: number): CorrelationFinding;
-  /** Toggle the memory channels — this is what the eval harness varies. */
+  /** Toggle the memory channels, this is what the eval harness varies. */
   useMemory: boolean;
   /** Called as each trace step is produced, so the UI can stream reasoning live. */
   onTraceStep?: (step: TraceStep) => void;

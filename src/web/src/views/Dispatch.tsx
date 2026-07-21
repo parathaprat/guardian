@@ -1,13 +1,13 @@
 /**
- * DISPATCH — the live console.
+ * DISPATCH, the live console.
  *
  * Designed around one question the person on shift is actually asking:
  * *what needs me right now, and can I trust what Sentry did?*
  *
  * Everything follows from that. The queue defaults to the slice that needs a
  * human. The reasoning column leads with the decision in plain words and keeps
- * Confirm / Override permanently in reach. The two technical surfaces — the raw
- * ingest feed and the tool-call trace — are real, complete, and *collapsed by
+ * Confirm / Override permanently in reach. The two technical surfaces, the raw
+ * ingest feed and the tool-call trace, are real, complete, and *collapsed by
  * default*, because they are how an engineer audits the agent, not how a
  * supervisor runs a shift.
  */
@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type {
   AgentActionKind, EvidenceRef, Incident, Priority, SecurityEvent, TraceStep,
+  WorldSnapshot,
 } from '../../../shared/types';
 import { ACTION_LABELS, EVENT_LABELS, PRIORITY_ORDER } from '../../../shared/types';
 import {
@@ -49,7 +50,7 @@ const OPEN = new Set(['triaging', 'open', 'dispatched', 'on_scene', 'escalated']
 /**
  * The inbox.
  *
- * "Needs you" is not "everything open" — Sentry handling a P3 nuisance alarm on
+ * "Needs you" is not "everything open". Sentry handling a P3 nuisance alarm on
  * its own is the product working, and putting it in front of a supervisor is
  * exactly the alarm fatigue this is meant to remove. It earns a human when the
  * agent has *committed a responder*, or when it is calling this a top-two
@@ -58,7 +59,7 @@ const OPEN = new Set(['triaging', 'open', 'dispatched', 'on_scene', 'escalated']
 function needsHuman(i: Incident): boolean {
   if (!OPEN.has(i.status) || i.feedback) return false;
   const d = i.decision;
-  if (!d) return false; // still reasoning — there is nothing to agree with yet
+  if (!d) return false; // still reasoning, there is nothing to agree with yet
   if (d.action === 'dispatch' || d.action === 'escalate') return true;
   return d.priority === 'P0' || d.priority === 'P1';
 }
@@ -327,7 +328,7 @@ function IncidentDetail({ incident, overrideNonce }: { incident: Incident | null
       {d ? (
         <>
           {/* The lead. Everything an operator needs to accept or reject the call,
-              above the fold, in words — before a single number appears. */}
+              above the fold, in words, before a single number appears. */}
           <section className="det-lead">
             <div className="det-verdict">
               <h2 className={`display display--m det-action is-${d.action}`}>{ACTION_PLAIN[d.action]}</h2>
@@ -405,7 +406,7 @@ function EvidenceRail({ evidence }: { evidence: EvidenceRef[] }) {
   const [all, setAll] = useState(false);
   if (evidence.length === 0) return null;
 
-  // Ranked by influence — the question is "what moved this", not "what ran".
+  // Ranked by influence, the question is "what moved this", not "what ran".
   const ranked = [...evidence].sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight));
   const shown = all ? ranked : ranked.slice(0, EVIDENCE_PREVIEW);
 
@@ -413,8 +414,8 @@ function EvidenceRail({ evidence }: { evidence: EvidenceRef[] }) {
    * Bars are scaled against the strongest piece of evidence *in this decision*,
    * not against an absolute ±1. Absolute scaling renders a typical set of
    * weights as four invisible stubs, which communicates nothing; relative
-   * scaling answers the question actually being asked — which of these moved it
-   * most — and preserves the ordering exactly.
+   * scaling answers the question actually being asked, which of these moved it
+   * most, and preserves the ordering exactly.
    */
   const peak = Math.max(...ranked.map((ev) => Math.abs(ev.weight)), 0.01);
 
@@ -432,7 +433,7 @@ function EvidenceRail({ evidence }: { evidence: EvidenceRef[] }) {
             <li
               key={`${ev.kind}-${ev.refId}-${i}`}
               className="ev-row"
-              title={`${humanize(ev.detail)} — ${evidenceDirection(ev.weight)}`}
+              title={`${humanize(ev.detail)}, ${evidenceDirection(ev.weight)}`}
             >
               <span className="ev-kind label">{EVIDENCE_PLAIN[ev.kind]}</span>
               <span className="ev-label truncate">{humanize(ev.label)}</span>
@@ -570,7 +571,7 @@ function GroundTruth({ incident }: { incident: Incident }) {
         <span className="truth-verdict">{right ? 'Sentry was right' : 'Sentry was wrong'}</span>
       </div>
       <div className="truth-line">
-        <span className="truth-val">{incident.outcome ? OUTCOME_PLAIN[incident.outcome] : '—'}</span>
+        <span className="truth-val">{incident.outcome ? OUTCOME_PLAIN[incident.outcome] : '-'}</span>
         <span className="dim">·</span>
         <span className="dim">true severity {t.trueSeverity} of 5</span>
       </div>
@@ -613,7 +614,7 @@ function OperatorBar({ incident, overriding, setOverriding }: {
       pushToast(
         verdict === 'confirm'
           ? 'Confirmed. Sentry records this as agreement and learns from it.'
-          : 'Override sent — and carried out. Your corrections are the strongest signal Sentry has.',
+          : 'Override sent, and carried out for real. Your corrections are the strongest signal Sentry has.',
         'info',
       );
       setOverriding(false);
@@ -687,7 +688,7 @@ function OperatorBar({ incident, overriding, setOverriding }: {
           </div>
           <input
             className="op-note-input"
-            placeholder="Why? (optional — Sentry reads this when it revises the playbook)"
+            placeholder="Why? (optional. Sentry reads this when it revises the playbook)"
             value={note}
             onChange={(ev) => setNote(ev.target.value)}
           />
@@ -704,20 +705,22 @@ function OperatorBar({ incident, overriding, setOverriding }: {
 // ── Site map ────────────────────────────────────────────────────────────────
 
 /**
- * Site bounds tile the unit square, so the plan has no aspect ratio of its own —
+ * Site bounds tile the unit square, so the plan has no aspect ratio of its own,
  * it takes the panel's. A fixed viewBox letterboxed it into a ribbon with dead
  * space either side, so the viewBox height is derived from the measured box.
  *
  * That has a consequence worth naming, because getting it wrong is what made
  * the labels collide: with the viewBox pinned at 100 units wide, one user unit
- * is `panelWidth / 100` pixels — so anything sized in user units grows with the
+ * is `panelWidth / 100` pixels, so anything sized in user units grows with the
  * panel. On a 1800px window that scale is ~15px/unit; on a 2560px one it is
  * ~21px, and every glyph inflates by 40%. So the hook returns the scale too,
  * and every mark below is declared in *pixels* and converted. Strokes get
  * `non-scaling-stroke`, which does the same job natively.
  */
-function useMapMetrics(ref: RefObject<HTMLDivElement | null>): { h: number; scale: number } {
-  const [m, setM] = useState({ h: 46, scale: 10 });
+function useMapMetrics(
+  ref: RefObject<HTMLDivElement | null>,
+): { h: number; scale: number; heightPx: number } {
+  const [m, setM] = useState({ h: 46, scale: 10, heightPx: 0 });
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -728,7 +731,7 @@ function useMapMetrics(ref: RefObject<HTMLDivElement | null>): { h: number; scal
       // Derive the scale from the viewBox actually used, exactly as `meet` does.
       // Computing it as width/100 instead silently disagrees with the renderer
       // the moment the clamp bites, and every mark comes out short by the ratio.
-      setM({ h, scale: Math.min(width / 100, height / h) });
+      setM({ h, scale: Math.min(width / 100, height / h), heightPx: height });
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -736,74 +739,137 @@ function useMapMetrics(ref: RefObject<HTMLDivElement | null>): { h: number; scal
   return m;
 }
 
-/** Intended on-screen sizes, in CSS pixels. */
-const MAP_PX = {
-  siteLabel: 11,
-  zoneLabel: 9.5,
-  guardLabel: 7.5,
-  node: 14,
-  guard: 9.5,
-  pulse: 17,
-  labelGap: 9,
+/**
+ * Mark sizes in CSS pixels, calibrated for a plan rendered about 400px tall and
+ * then scaled with the real one. Fixed pixel sizes were legible on a laptop and
+ * far too small on a 27" panel, where the map is the same handful of pixels but
+ * the viewing distance is not: a plan that gets more room should use it.
+ */
+const MAP_BASE = {
+  siteLabel: 19,
+  zoneLabel: 15,
+  guardLabel: 11,
+  node: 22,
+  guard: 14,
+  pulse: 28,
+  labelGap: 12,
 } as const;
+
+/** Room inside each site box: for the site code above, zone codes below. */
+const MAP_INSET = { top: 0.2, bottom: 0.16, x: 0.07 } as const;
+
+/** Zone codes land near body-text size at a typical map height, by design. */
+const MAP_REF_H = 360;
+const MAP_K_MIN = 0.68;
+const MAP_K_MAX = 1.5;
+
+const clampN = (lo: number, v: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+interface Box { x: number; y: number; w: number; h: number }
+
+/**
+ * The authored site bounds stack Mercer over Northgate, which reads well in a
+ * squarish panel and terribly in a wide, short strip: every zone gets crushed
+ * into a third of the height while two thirds of the width goes spare. When the
+ * strip is wide, lay the sites out in a row instead. This is presentation only,
+ * so it belongs on the client; the bounds the server sends are untouched.
+ */
+function siteBoxes(sites: WorldSnapshot['sites'], aspect: number): Map<string, Box> {
+  const out = new Map<string, Box>();
+  if (aspect >= 2.4 && sites.length > 1) {
+    const gap = 0.018;
+    const w = (1 - gap * (sites.length - 1)) / sites.length;
+    sites.forEach((s, i) => out.set(s.id, { x: i * (w + gap), y: 0, w, h: 1 }));
+  } else {
+    for (const s of sites) out.set(s.id, s.bounds);
+  }
+  return out;
+}
 
 function SiteMap() {
   const world = useWorld();
   const incidents = useIncidents();
   const [inject, setInject] = useState<string | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const { h: H, scale } = useMapMetrics(bodyRef);
-  /** px → user units, so a mark keeps its size whatever the panel does. */
+  const { h: H, scale, heightPx } = useMapMetrics(bodyRef);
+
+  /** px -> user units, so a mark keeps its size whatever the panel does. */
   const u = (px: number) => px / scale;
+  /** Marks grow with the room the plan is given, within sane bounds. */
+  const k = clampN(MAP_K_MIN, heightPx / MAP_REF_H, MAP_K_MAX);
+  const m = (base: number) => u(base * k);
+
+  const boxes = useMemo(
+    () => siteBoxes(world.sites, H > 0 ? 100 / H : 1),
+    [world.sites, H],
+  );
 
   const hot = useMemo(() => {
-    const m = new Map<string, Priority>();
+    const map = new Map<string, Priority>();
     for (const i of incidents) {
       if (!OPEN.has(i.status) || !i.decision) continue;
-      const cur = m.get(i.event.zoneId);
+      const cur = map.get(i.event.zoneId);
       if (!cur || PRIORITY_ORDER[i.decision.priority] < PRIORITY_ORDER[cur]) {
-        m.set(i.event.zoneId, i.decision.priority);
+        map.set(i.event.zoneId, i.decision.priority);
       }
     }
-    return m;
+    return map;
   }, [incidents]);
 
   if (world.zones.length === 0) return <Panel className="dispatch-map" eyebrow="Site map" />;
+
+  /**
+   * Zone centre in user units, via whichever box layout is in force.
+   *
+   * Zone x/y are 0..1 across the site, so a zone at y=1 sits exactly on the box
+   * edge and its label renders outside the box. The inset reserves room for the
+   * site code along the top and for zone codes along the bottom, which is also
+   * what stops a corner zone from landing under the site label.
+   */
+  const at = (zone: { siteId: string; x: number; y: number }): [number, number] | null => {
+    const b = boxes.get(zone.siteId);
+    if (!b) return null;
+    const x = MAP_INSET.x + zone.x * (1 - MAP_INSET.x * 2);
+    const y = MAP_INSET.top + zone.y * (1 - MAP_INSET.top - MAP_INSET.bottom);
+    return [(b.x + x * b.w) * 100, (b.y + y * b.h) * H];
+  };
 
   return (
     <Panel
       className="dispatch-map"
       eyebrow="Site map"
-      title={`${world.sites.length} sites · ${world.zones.length} zones`}
+      title={`${world.sites.length} sites, ${world.zones.length} zones`}
       actions={<Label>click a zone to raise an alarm</Label>}
       bodyClassName="map-body"
       bodyRef={bodyRef}
     >
       <svg viewBox={`0 0 100 ${H}`} className="map-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Site map">
-        {world.sites.map((s) => (
-          <rect
-            key={s.id}
-            x={s.bounds.x * 100} y={s.bounds.y * H}
-            width={s.bounds.w * 100} height={s.bounds.h * H}
-            className="map-site"
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
+        {world.sites.map((s) => {
+          const b = boxes.get(s.id);
+          if (!b) return null;
+          return (
+            <rect
+              key={s.id}
+              x={b.x * 100} y={b.y * H}
+              width={b.w * 100} height={b.h * H}
+              className="map-site"
+              vectorEffect="non-scaling-stroke"
+            />
+          );
+        })}
 
         {world.zones.map((z) => {
-          const site = world.sites.find((s) => s.id === z.siteId);
-          if (!site) return null;
-          const px = (site.bounds.x + z.x * site.bounds.w) * 100;
-          const py = (site.bounds.y + z.y * site.bounds.h) * H;
+          const from = at(z);
+          if (!from) return null;
           return z.adjacent.map((aid) => {
             const a = world.zones.find((zz) => zz.id === aid);
             if (!a || a.siteId !== z.siteId || a.id < z.id) return null;
-            const ax = (site.bounds.x + a.x * site.bounds.w) * 100;
-            const ay = (site.bounds.y + a.y * site.bounds.h) * H;
+            const to = at(a);
+            if (!to) return null;
             return (
               <line
                 key={`${z.id}-${aid}`}
-                x1={px} y1={py} x2={ax} y2={ay}
+                x1={from[0]} y1={from[1]} x2={to[0]} y2={to[1]}
                 className="map-link"
                 vectorEffect="non-scaling-stroke"
               />
@@ -812,24 +878,30 @@ function SiteMap() {
         })}
 
         {world.zones.map((z) => {
-          const site = world.sites.find((s) => s.id === z.siteId);
-          if (!site) return null;
-          const px = (site.bounds.x + z.x * site.bounds.w) * 100;
-          const py = (site.bounds.y + z.y * site.bounds.h) * H;
+          const at_ = at(z);
+          if (!at_) return null;
+          const [px, py] = at_;
           const p = hot.get(z.id);
+          const side = m(MAP_BASE.node);
           return (
             <g key={z.id} className="map-zone" onClick={() => setInject(inject === z.id ? null : z.id)}>
-              <title>{z.name} — click to raise a test alarm here</title>
-              {p && <circle cx={px} cy={py} r={u(MAP_PX.pulse) / 2} className={`map-pulse is-${p}`} vectorEffect="non-scaling-stroke" />}
+              <title>{z.name}: click to raise a test alarm here</title>
+              {p && (
+                <circle
+                  cx={px} cy={py} r={m(MAP_BASE.pulse) / 2}
+                  className={`map-pulse is-${p}`}
+                  vectorEffect="non-scaling-stroke"
+                />
+              )}
               <rect
-                x={px - u(MAP_PX.node) / 2} y={py - u(MAP_PX.node) / 2}
-                width={u(MAP_PX.node)} height={u(MAP_PX.node)}
+                x={px - side / 2} y={py - side / 2}
+                width={side} height={side}
                 className={`map-node${p ? ` is-${p}` : ''}`}
               />
               <text
                 x={px}
-                y={py + u(MAP_PX.node / 2 + MAP_PX.labelGap)}
-                fontSize={u(MAP_PX.zoneLabel)}
+                y={py + side / 2 + m(MAP_BASE.labelGap)}
+                fontSize={m(MAP_BASE.zoneLabel)}
                 className="map-zone-label"
               >
                 {z.code}
@@ -840,22 +912,23 @@ function SiteMap() {
 
         {world.guards.filter((g) => g.status !== 'off_shift').map((g) => {
           const z = world.zones.find((zz) => zz.id === g.currentZoneId);
-          const site = z && world.sites.find((s) => s.id === z.siteId);
-          if (!z || !site) return null;
-          const off = u(MAP_PX.node * 0.8);
-          const px = (site.bounds.x + z.x * site.bounds.w) * 100 + off;
-          const py = (site.bounds.y + z.y * site.bounds.h) * H - off;
+          if (!z) return null;
+          const at_ = at(z);
+          if (!at_) return null;
+          const off = m(MAP_BASE.node * 0.75);
+          const px = at_[0] + off;
+          const py = at_[1] - off;
           return (
             <g key={g.id}>
-              <title>{g.name} — {g.status.replace(/_/g, ' ')}</title>
+              <title>{g.name}, {g.status.replace(/_/g, ' ')}</title>
               <circle
-                cx={px} cy={py} r={u(MAP_PX.guard)}
+                cx={px} cy={py} r={m(MAP_BASE.guard)}
                 className={`map-guard is-${g.status}`}
                 vectorEffect="non-scaling-stroke"
               />
               <text
-                x={px} y={py + u(MAP_PX.guardLabel * 0.36)}
-                fontSize={u(MAP_PX.guardLabel)}
+                x={px} y={py + m(MAP_BASE.guardLabel * 0.36)}
+                fontSize={m(MAP_BASE.guardLabel)}
                 className="map-guard-label"
               >
                 {initials(g.name)}
@@ -864,19 +937,23 @@ function SiteMap() {
           );
         })}
 
-        {/* Site codes paint last: drawn with the site rect they sat *under* any
+        {/* Site codes paint last: drawn with the site rect, they sat *under* any
             zone node that happened to land in the corner. */}
-        {world.sites.map((s) => (
-          <text
-            key={`${s.id}-label`}
-            x={s.bounds.x * 100 + u(8)}
-            y={s.bounds.y * H + u(MAP_PX.siteLabel + 6)}
-            fontSize={u(MAP_PX.siteLabel)}
-            className="map-site-label"
-          >
-            {s.code}
-          </text>
-        ))}
+        {world.sites.map((s) => {
+          const b = boxes.get(s.id);
+          if (!b) return null;
+          return (
+            <text
+              key={`${s.id}-label`}
+              x={b.x * 100 + m(10)}
+              y={b.y * H + m(MAP_BASE.siteLabel + 8)}
+              fontSize={m(MAP_BASE.siteLabel)}
+              className="map-site-label"
+            >
+              {s.code}
+            </text>
+          );
+        })}
       </svg>
 
       {inject && <InjectPopover zoneId={inject} onClose={() => setInject(null)} />}

@@ -1,7 +1,7 @@
 /**
  * The console frame.
  *
- * The page itself never scrolls — this is a wall-display tool, so the shell is a
+ * The page itself never scrolls, this is a wall-display tool, so the shell is a
  * fixed grid and only inner panes move. Everything else here is lifecycle: the
  * SSE connection, hash routing, and the global key map.
  */
@@ -27,7 +27,7 @@ function readHash(): ViewId {
 
 /**
  * Grouped by what the operator is doing, not alphabetically. The first group is
- * the shift-work loop — those four keys run the console without a mouse.
+ * the shift-work loop, those four keys run the console without a mouse.
  */
 const SHORTCUT_GROUPS: Array<{ title: string; keys: Array<[string, string]> }> = [
   {
@@ -35,8 +35,8 @@ const SHORTCUT_GROUPS: Array<{ title: string; keys: Array<[string, string]> }> =
     keys: [
       ['↓ / J', 'Next incident'],
       ['↑ / K', 'Previous incident'],
-      ['⏎', 'Looks right — confirm the call'],
-      ['O', 'Change it — override the call'],
+      ['⏎', 'Looks right, confirm the call'],
+      ['O', 'Change it, override the call'],
     ],
   },
   {

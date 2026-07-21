@@ -14,7 +14,7 @@
 .dispatch > .panel { border: none; min-height: 0; }
 .dispatch-right {
   display: grid;
-  grid-template-rows: minmax(140px, 26%) minmax(0, 1fr);
+  grid-template-rows: minmax(190px, 31%) minmax(0, 1fr);
   gap: var(--hair);
   background: var(--line);
   min-height: 0;
@@ -24,6 +24,14 @@
 @media (max-width: 1280px) {
   .dispatch { grid-template-columns: 250px 320px minmax(0, 1fr); }
   .dispatch.is-slim { grid-template-columns: 30px 320px minmax(0, 1fr); }
+}
+
+/* On a laptop the vertical budget is the scarce one and the reasoning column is
+   what the operator reads, so the map gives up its share first. It keeps a hard
+   floor: below about 200px the zone nodes start colliding whatever we do to the
+   mark sizes, and a plan you cannot read is worse than a shorter one. */
+@media (max-height: 900px) {
+  .dispatch-right { grid-template-rows: minmax(200px, 26%) minmax(0, 1fr); }
 }
 @media (max-width: 1040px) {
   .dispatch,
@@ -62,7 +70,7 @@
 
 .feed-body { padding: 0; }
 
-/* One line per alarm. The device's own confidence is a hairline at the end —
+/* One line per alarm. The device's own confidence is a hairline at the end,
    present for scanning, never competing with the event name. */
 .feed-row {
   display: grid;
@@ -407,7 +415,7 @@
 /* Geometry here is authored in *pixels* by the component and converted to user
    units, because the viewBox height is adaptive and so one unit is not a fixed
    number of pixels. Strokes use non-scaling-stroke, which is the native
-   equivalent — so no width or font-size below may be given in user units. */
+   equivalent, so no width or font-size below may be given in user units. */
 .map-site { fill: none; stroke: var(--line); stroke-width: 1; }
 .map-link { stroke: var(--line); stroke-width: 1; }
 

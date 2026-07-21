@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   SENTRY — design tokens
+   SENTRY, design tokens
    Derived from the Calvis brand system (calvis.com): Metropolis, ink #0D0D0D,
    paper #F6F6F6, single orange accent #EA5112, zero border-radius, mono
    micro-labels with wide tracking.
 
-   Chart scales are NOT hand-picked — every scale below was run through the
+   Chart scales are NOT hand-picked, every scale below was run through the
    dataviz palette validator (lightness band, chroma floor, CVD separation
    under Machado 2009, normal-vision floor, surface contrast). Results are
    recorded in docs/PALETTE.md.
@@ -63,7 +63,7 @@
   --accent-hover:   #C9430C;
   --accent-wash:    #FDF0EA;
 
-  /* ── Status (reserved — never reused as a series color) ───────────────── */
+  /* ── Status (reserved, never reused as a series color) ───────────────── */
   --status-good:    #0E7A4E;
   --status-warn:    #B06A00;
   --status-serious: #C1470E;
@@ -73,7 +73,7 @@
   --status-serious-wash: #FBEDE6;
   --status-crit-wash:    #FBEAE9;
 
-  /* ── Priority (ordinal — P0 hottest) ──────────────────────────────────── */
+  /* ── Priority (ordinal. P0 hottest) ──────────────────────────────────── */
   --p0: #B3231C;
   --p1: #EA5112;
   --p2: #B06A00;
@@ -81,7 +81,7 @@
 
   /* ── Chart: categorical, 3 slots (validated all-pairs, light) ─────────── */
   --series-1: #2F5E9E;   /* blue  */
-  --series-2: #EA5112;   /* orange — brand accent */
+  --series-2: #EA5112;   /* orange, brand accent */
   --series-3: #0E8A6B;   /* teal  */
 
   /* ── Chart: ordinal ramp for the 3 eval arms (static → cold → learned) ── */
@@ -118,7 +118,7 @@
   --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* ═══ DARK — an ops-floor theme, selected step-by-step, not an auto-flip ═══ */
+/* ═══ DARK, an ops-floor theme, selected step-by-step, not an auto-flip ═══ */
 :root[data-theme='dark'] {
   color-scheme: dark;
 

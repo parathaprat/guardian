@@ -2,7 +2,7 @@
 /**
  * End-to-end smoke test.
  *
- * Boots nothing — assumes the API is already running (`npm run dev:server`).
+ * Boots nothing, assumes the API is already running (`npm run dev:server`).
  * Exercises the full loop: snapshot -> stream -> inject -> decision -> feedback
  * -> reflection -> eval, and asserts the shapes the UI depends on.
  *
@@ -22,7 +22,7 @@ function check(name, cond, detail = '') {
   } else {
     fail++;
     failures.push(name);
-    console.log(`  \x1b[31m✗\x1b[0m ${name}${detail ? ` — ${detail}` : ''}`);
+    console.log(`  \x1b[31m✗\x1b[0m ${name}${detail ? `, ${detail}` : ''}`);
   }
 }
 
@@ -67,7 +67,7 @@ async function collectStream(ms) {
       }
     }
   } catch {
-    /* aborted — expected */
+    /* aborted, expected */
   } finally {
     clearTimeout(timer);
   }
@@ -91,7 +91,7 @@ async function main() {
   check('has metrics object', s?.metrics && typeof s.metrics.dispatchScore === 'number');
   check('playbook is seeded', Array.isArray(s?.playbook));
 
-  // Ground-truth leak check — the single most important invariant.
+  // Ground-truth leak check, the single most important invariant.
   section('2. Ground-truth containment');
   const unresolved = (s?.incidents ?? []).filter((i) => i.outcome === null);
   check('no revealedTruth on unresolved incidents',
@@ -110,7 +110,7 @@ async function main() {
     `got ${badSpeed.status}`);
 
   section('4. Live stream');
-  // Inject while the stream is open rather than betting on the arrival process —
+  // Inject while the stream is open rather than betting on the arrival process,
   // a test that depends on a Poisson draw is a flaky test.
   const zone0 = s.world.zones[0];
   const collecting = collectStream(9000);
@@ -207,7 +207,7 @@ async function main() {
     //
     // A console eval trains its learned arm from the *live* memory, which in a
     // smoke run is a few minutes old, over 120 events. Whether that clears a
-    // static table is a genuine coin flip at that sample size — asserting it
+    // static table is a genuine coin flip at that sample size, asserting it
     // would be a test that fails for reasons unrelated to the code, and the
     // temptation would then be to weaken it until it passed.
     //

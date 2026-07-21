@@ -1,5 +1,5 @@
 /**
- * SENTRY — the deterministic judgment engine.
+ * SENTRY, the deterministic judgment engine.
  *
  * This is not a stub. It is the engine the eval harness scores (fast, free,
  * reproducible) and the engine the whole product falls back to when no API key
@@ -24,7 +24,7 @@ import {
 /**
  * Cost model, in arbitrary but consistent units.
  *
- * A nuisance dispatch costs guard time *and* guard trust — the second is why the
+ * A nuisance dispatch costs guard time *and* guard trust, the second is why the
  * penalty is superlinear in P(false). A miss costs severity², because in physical
  * security the tail is the whole risk: a missed person-down is not five times
  * worse than a missed noise complaint, it is categorically different.
@@ -115,7 +115,7 @@ export class ReasonerAgent implements DispatchAgent {
       ruleAction = top.action;
     }
 
-    // Precedent nudges, weighted by similarity — it is the weakest channel, so it
+    // Precedent nudges, weighted by similarity, it is the weakest channel, so it
     // moves the posterior least.
     if (precedent.available && precedent.matches.length > 0) {
       let num = 0;
@@ -154,7 +154,7 @@ export class ReasonerAgent implements DispatchAgent {
     emit(step('thinking', 'Weighing expected cost', Date.now(), {
       detail:
         `Posterior P(real) = ${(pReal * 100).toFixed(0)}%` +
-        (learnedFrom > 0 ? ` from ${learnedFrom} prior observation${learnedFrom === 1 ? '' : 's'}` : ' (no history — using the type prior)') +
+        (learnedFrom > 0 ? ` from ${learnedFrom} prior observation${learnedFrom === 1 ? '' : 's'}` : ' (no history, using the type prior)') +
         `. Expected severity ${severity}. Cost of not responding ≈ ${costOfInaction.toFixed(1)}; ` +
         `cost of responding ≈ ${costOfResponse.toFixed(1)} (guard time plus a trust penalty scaled by ` +
         `${((1 - pReal) * 100).toFixed(0)}% chance this is a nuisance call). ` +
@@ -164,7 +164,7 @@ export class ReasonerAgent implements DispatchAgent {
     // ── Action selection ───────────────────────────────────────────────────
     let action: AgentActionKind;
     if (isLifeSafety(ctx.event.type)) {
-      // Hard floor. No posterior is allowed to suppress a life-safety signal —
+      // Hard floor. No posterior is allowed to suppress a life-safety signal,
       // the asymmetry is not something a cost model should be trusted to price.
       action = severity >= 5 ? 'escalate' : 'dispatch';
     } else if (respond || (severity >= 4 && pReal >= 0.3)) {
@@ -177,7 +177,7 @@ export class ReasonerAgent implements DispatchAgent {
     } else if (severity <= 3) {
       action = 'monitor';
     } else {
-      // Never let a high-severity call sit in 'monitor' — that is how misses happen.
+      // Never let a high-severity call sit in 'monitor', that is how misses happen.
       action = 'dispatch';
     }
 
@@ -200,7 +200,7 @@ export class ReasonerAgent implements DispatchAgent {
         responderName = best.name;
         responderNote = best.reason;
       } else {
-        // Nobody is available — that is an escalation, not a dispatch.
+        // Nobody is available, that is an escalation, not a dispatch.
         action = 'escalate';
         responderNote = 'No responder available at this site; escalating to the supervisor.';
       }

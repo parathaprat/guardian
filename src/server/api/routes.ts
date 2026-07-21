@@ -45,7 +45,7 @@ export function createRouter(engine: OpsEngine): Router {
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
     });
-    // Streaming dies under Nagle — send small frames immediately.
+    // Streaming dies under Nagle, send small frames immediately.
     res.socket?.setNoDelay(true);
 
     const send = (payload: unknown) => {
@@ -153,6 +153,27 @@ export function createRouter(engine: OpsEngine): Router {
       useClaude: body.useClaude === true,
     });
     res.json(run);
+  }));
+
+  /**
+   * The multi-world experiment. Separate from /evals/run because it answers a
+   * different question: not "did learning win here" but "does it win in
+   * general, and how sure are we".
+   */
+  router.post('/evals/experiment', guard(async (req, res) => {
+    const body = (req.body ?? {}) as {
+      eventCount?: unknown; seedCount?: unknown; useClaude?: unknown;
+    };
+    const count = Number(body.eventCount);
+    const seeds = Number(body.seedCount);
+    if (!Number.isFinite(count) || count < 1) return bad(res, 'eventCount must be a positive number');
+    if (!Number.isFinite(seeds) || seeds < 2) return bad(res, 'seedCount must be at least 2');
+    const exp = await engine.runExperimentNow({
+      eventCount: Math.min(2000, Math.floor(count)),
+      seedCount: Math.min(40, Math.floor(seeds)),
+      useClaude: body.useClaude === true,
+    });
+    res.json(exp);
   }));
 
   router.post('/memory/reset', guard((_req, res) => {

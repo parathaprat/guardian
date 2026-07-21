@@ -1,8 +1,8 @@
 /**
- * SENTRY — the reflection agent.
+ * SENTRY, the reflection agent.
  *
  * Reads what actually happened and drafts changes to the playbook: new rules,
- * edits to existing ones, retirements. It never applies anything — it produces a
+ * edits to existing ones, retirements. It never applies anything, it produces a
  * `PlaybookProposal` with `status: 'pending'` that a human approves as a diff.
  *
  * That human gate is the point. Physical security is an audited, liability-bearing
@@ -82,7 +82,7 @@ function makeRule(args: {
   };
 }
 
-/** Incidents whose (zone,type) matches a cell — used to cite real evidence. */
+/** Incidents whose (zone,type) matches a cell, used to cite real evidence. */
 function evidenceFor(incidents: Incident[], cell: CalibrationCell, limit = 4): string[] {
   return incidents
     .filter((i) => i.event.type === cell.type && (cell.zoneId === null || i.event.zoneId === cell.zoneId))
@@ -138,7 +138,7 @@ function statisticalProposal(args: ReflectionArgs): PlaybookProposal {
           `${where} has resolved real only ${Math.round(c.pReal * 100)}% of the time across ` +
           `${c.observations} observations (±${Math.round(c.uncertainty * 100)}pp). Dispatching on this ` +
           `signal spends guard time and erodes trust in the alarm without a security benefit. ` +
-          `Suppress it here, in this window only — the same signal outside the window keeps its normal handling.`,
+          `Suppress it here, in this window only, the same signal outside the window keeps its normal handling.`,
         evidenceIncidentIds: evidenceFor(incidents, c),
       }));
     } else if (c.pReal >= HOT_FLOOR) {
@@ -173,7 +173,7 @@ function statisticalProposal(args: ReflectionArgs): PlaybookProposal {
     } else if (r.stats.overridden >= 3 && r.stats.overridden > r.stats.agreed) {
       retire.push({
         ruleId: r.id,
-        reason: `Operators overrode this rule ${r.stats.overridden} times versus ${r.stats.agreed} confirmations — it does not match how this team actually dispatches.`,
+        reason: `Operators overrode this rule ${r.stats.overridden} times versus ${r.stats.agreed} confirmations, it does not match how this team actually dispatches.`,
       });
     }
   }
@@ -182,11 +182,11 @@ function statisticalProposal(args: ReflectionArgs): PlaybookProposal {
   const resolved = incidents.filter((i) => i.outcome !== null).length;
 
   const summary = rules.length === 0 && retire.length === 0
-    ? `Reviewed ${resolved} resolved incidents. No cell has yet accumulated ${MIN_OBS_FOR_RULE} observations at a strong enough posterior to justify a written rule. No changes proposed — the statistics are not there yet, and guessing would be worse than waiting.`
+    ? `Reviewed ${resolved} resolved incidents. No cell has yet accumulated ${MIN_OBS_FOR_RULE} observations at a strong enough posterior to justify a written rule. No changes proposed, the statistics are not there yet, and guessing would be worse than waiting.`
     : `Reviewed ${resolved} resolved incidents and ${overrides} operator override${overrides === 1 ? '' : 's'}. ` +
       `Proposing ${rules.length} rule change${rules.length === 1 ? '' : 's'} and ${retire.length} retirement${retire.length === 1 ? '' : 's'}. ` +
       `Every proposal below is drawn from a calibration cell with at least ${MIN_OBS_FOR_RULE} observations, ` +
-      `so each one is a pattern the system has actually watched resolve — not an inference from the event text.`;
+      `so each one is a pattern the system has actually watched resolve, not an inference from the event text.`;
 
   return {
     id: newProposalId(),
@@ -240,7 +240,7 @@ const PROPOSAL_SCHEMA = {
   required: ['summary', 'rules', 'retire'],
 };
 
-/** A compact digest — the model reasons over statistics, not raw incident dumps. */
+/** A compact digest, the model reasons over statistics, not raw incident dumps. */
 function buildDigest(args: ReflectionArgs): string {
   const { memory, world, incidents } = args;
   const lines: string[] = [];
@@ -270,7 +270,7 @@ function buildDigest(args: ReflectionArgs): string {
   }
 
   const overrides = incidents.filter((i) => i.feedback?.verdict === 'override');
-  lines.push('', `## Operator overrides (${overrides.length}) — the highest-value signal here`);
+  lines.push('', `## Operator overrides (${overrides.length}), the highest-value signal here`);
   for (const i of overrides.slice(-12)) {
     lines.push(
       `- ${i.event.type} at zone=${i.event.zoneId}: agent chose ${i.decision?.action ?? '?'}, ` +
@@ -380,7 +380,7 @@ export async function runReflection(args: ReflectionArgs): Promise<PlaybookPropo
       status: 'pending',
     };
   } catch {
-    // A failed reflection must never take the console down — fall back silently
+    // A failed reflection must never take the console down, fall back silently
     // to the statistical pass, which is a genuine second opinion, not a stub.
     return statisticalProposal(args);
   }

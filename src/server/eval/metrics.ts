@@ -1,5 +1,5 @@
 /**
- * SENTRY — metric definitions.
+ * SENTRY, metric definitions.
  *
  * Every number the product uses to claim "it is getting smarter" is defined
  * here, once. See docs/METRICS.md for the prose definitions, the composite
@@ -30,7 +30,7 @@ import type { ComputeLearningCurve, ComputeMetrics, MetricsInput } from '../cont
  */
 export const LATENCY_TARGET_MS = 30_000;
 
-/** Actions that put a human in motion — the ones a false alarm actually costs. */
+/** Actions that put a human in motion, the ones a false alarm actually costs. */
 const COMMITTING_ACTIONS: ReadonlySet<AgentActionKind> = new Set<AgentActionKind>(['dispatch', 'escalate']);
 
 /** Severity at or above which a miss is unrecoverable. */
@@ -57,7 +57,7 @@ export const SCORE_WEIGHTS: Record<ScoreTerm, number> = {
 
 /**
  * Which score terms had a non-empty denominator. A term with no data is
- * dropped and its weight redistributed across the terms that do — scoring a
+ * dropped and its weight redistributed across the terms that do, scoring a
  * term you have no evidence for is how benchmarks start lying.
  */
 export type ScoreAvailability = Partial<Record<ScoreTerm, boolean>>;
@@ -269,7 +269,7 @@ const MAX_CURVE_POINTS = 180;
 /**
  * A *sliding* window, not a running average. A cumulative mean asymptotically
  * stops moving, which makes a genuinely improving agent look like a flat line
- * after a few hundred incidents — exactly the chart artefact that makes
+ * after a few hundred incidents, exactly the chart artefact that makes
  * learning claims unfalsifiable.
  *
  * `calibrationCells` and `activeRules` are reconstructed from the incidents
@@ -285,7 +285,7 @@ export const computeLearningCurve: ComputeLearningCurve = (
 ): LearningPoint[] => {
   const width = Math.max(1, Math.floor(window) || DEFAULT_CURVE_WINDOW);
 
-  // Chronological by decision time — the order the agent actually experienced.
+  // Chronological by decision time, the order the agent actually experienced.
   const ordered = incidents
     .filter(isResolved)
     .sort((a, b) => (a.createdAt - b.createdAt) || a.id.localeCompare(b.id));

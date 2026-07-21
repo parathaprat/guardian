@@ -1,7 +1,7 @@
 /**
  * The physical portfolio, and the hidden structure inside it.
  *
- * Topology (sites, zones, adjacency, rosters, ids) is a *constant* — it does not
+ * Topology (sites, zones, adjacency, rosters, ids) is a *constant*, it does not
  * vary with the seed. Two things depend on it and would break if it did: the
  * REGULARITIES below reference concrete zone and robot ids, and the eval harness
  * compares runs across seeds. The seed only jitters hidden per-responder truth,
@@ -16,7 +16,7 @@ import type { WorldState } from '../contracts';
 import type { Rng } from '../util/rng';
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  SITES — bounds tile the 0..1 canvas exactly, no overlap
+//  SITES, bounds tile the 0..1 canvas exactly, no overlap
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SITES: Site[] = [
@@ -44,7 +44,7 @@ const SITES: Site[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  ZONES — x/y are site-local 0..1, laid out as a plausible plan
+//  ZONES, x/y are site-local 0..1, laid out as a plausible plan
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ZoneSpec {
@@ -59,7 +59,7 @@ interface ZoneSpec {
 }
 
 const ZONE_SPECS: ZoneSpec[] = [
-  // Harborview — a fenced yard: gate north, fence line west, dock row across the
+  // Harborview, a fenced yard: gate north, fence line west, dock row across the
   // middle, trailer lot east, service corridor and admin block to the south.
   { id: 'hbv-gate-north', siteId: 'hbv', name: 'North Gate', code: 'G-1', kind: 'perimeter', x: 0.50, y: 0.07, baseRisk: 0.46 },
   { id: 'hbv-perimeter-west', siteId: 'hbv', name: 'Perimeter West', code: 'PW', kind: 'perimeter', x: 0.07, y: 0.46, baseRisk: 0.58 },
@@ -69,7 +69,7 @@ const ZONE_SPECS: ZoneSpec[] = [
   { id: 'hbv-utility-1', siteId: 'hbv', name: 'Utility Corridor U-1', code: 'U-1', kind: 'utility', x: 0.46, y: 0.62, baseRisk: 0.24 },
   { id: 'hbv-lobby-2', siteId: 'hbv', name: 'Admin Lobby L-2', code: 'L-2', kind: 'lobby', x: 0.28, y: 0.88, baseRisk: 0.22 },
 
-  // Mercer Tower — a vertical stack with Stairwell A as the spine.
+  // Mercer Tower, a vertical stack with Stairwell A as the spine.
   { id: 'mcr-roof-1', siteId: 'mcr', name: 'Roof R-1', code: 'R-1', kind: 'roof', x: 0.50, y: 0.08, baseRisk: 0.40 },
   { id: 'mcr-server-s2', siteId: 'mcr', name: 'Server Room S-2', code: 'S-2', kind: 'server_room', x: 0.44, y: 0.40, baseRisk: 0.66 },
   { id: 'mcr-stair-a', siteId: 'mcr', name: 'Stairwell A', code: 'SW-A', kind: 'stairwell', x: 0.76, y: 0.46, baseRisk: 0.30 },
@@ -77,7 +77,7 @@ const ZONE_SPECS: ZoneSpec[] = [
   { id: 'mcr-deck-p2', siteId: 'mcr', name: 'Deck P-2', code: 'P-2', kind: 'parking', x: 0.20, y: 0.62, baseRisk: 0.46 },
   { id: 'mcr-dock-b', siteId: 'mcr', name: 'Service Dock B', code: 'SD-B', kind: 'loading_dock', x: 0.14, y: 0.92, baseRisk: 0.36 },
 
-  // Northgate — two retail wings either side of a central atrium.
+  // Northgate, two retail wings either side of a central atrium.
   { id: 'ngt-dock-c', siteId: 'ngt', name: 'Dock C-2', code: 'C-2', kind: 'loading_dock', x: 0.12, y: 0.18, baseRisk: 0.38 },
   { id: 'ngt-floor-north', siteId: 'ngt', name: 'Retail Floor North', code: 'RF-N', kind: 'retail_floor', x: 0.36, y: 0.32, baseRisk: 0.34 },
   { id: 'ngt-atrium', siteId: 'ngt', name: 'Atrium Entrance', code: 'A-1', kind: 'lobby', x: 0.56, y: 0.52, baseRisk: 0.28 },
@@ -178,7 +178,7 @@ const ROBOT_SPECS: RobotSpec[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  REGULARITIES — the latent structure the agent has to discover
+//  REGULARITIES, the latent structure the agent has to discover
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -186,9 +186,9 @@ const ROBOT_SPECS: RobotSpec[] = [
  * or a tool result: the entire experiment is whether the agent can recover them
  * from resolved outcomes alone.
  *
- * `pReal`        — P(event is genuine) when this regularity is the most specific match.
- * `severityBias` — additive offset on the type's mean true severity, for real events only.
- * `note`         — the ground-truth explanation for the *dominant* mode (real if
+ * `pReal`       , P(event is genuine) when this regularity is the most specific match.
+ * `severityBias`, additive offset on the type's mean true severity, for real events only.
+ * `note`        , the ground-truth explanation for the *dominant* mode (real if
  *                  pReal >= 0.5, false otherwise). Surfaced in the UI only after
  *                  an incident resolves.
  */
@@ -205,7 +205,7 @@ export interface Regularity {
   note: string;
 }
 
-/** Sampling weight — how heavily the generator biases the stream toward this pattern. */
+/** Sampling weight, how heavily the generator biases the stream toward this pattern. */
 type WeightedRegularity = Regularity & { weight: number };
 
 const DOCK_NAME: Record<string, string> = Object.fromEntries(
@@ -213,7 +213,7 @@ const DOCK_NAME: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * Ordered MOST SPECIFIC FIRST — `matchRegularity` takes the first hit, so a
+ * Ordered MOST SPECIFIC FIRST, `matchRegularity` takes the first hit, so a
  * zone+hour rule always beats a site-wide or global one.
  */
 const SPECS: WeightedRegularity[] = [
@@ -225,7 +225,7 @@ const SPECS: WeightedRegularity[] = [
     hourRange: { start: 2, end: 4.5 },
     sourceId: null,
     pReal: 0.08, severityBias: -1, weight: 9,
-    note: 'HVAC vent cycle at Dock D-3 — the rooftop unit dumps air across the aisle PIR every twenty minutes between 02:00 and 04:30. Recurring nuisance alarm.',
+    note: 'HVAC vent cycle at Dock D-3, the rooftop unit dumps air across the aisle PIR every twenty minutes between 02:00 and 04:30. Recurring nuisance alarm.',
   },
   {
     id: 'reg_mcr_r04_glass',
@@ -245,7 +245,7 @@ const SPECS: WeightedRegularity[] = [
     hourRange: { start: 8, end: 9.5 },
     sourceId: null,
     pReal: 0.15, severityBias: -1, weight: 8,
-    note: 'Shift-change crush in Lobby L-1 — tenants hold the speedgate for colleagues between 08:00 and 09:30. Benign, and building management has signed off on it.',
+    note: 'Shift-change crush in Lobby L-1, tenants hold the speedgate for colleagues between 08:00 and 09:30. Benign, and building management has signed off on it.',
   },
   // 4a/4b are the point of hour-bucketed calibration: same zone, same type, and
   // only the hour decides whether it is routine or a break-in.
@@ -257,7 +257,7 @@ const SPECS: WeightedRegularity[] = [
     hourRange: { start: 6, end: 8 },
     sourceId: null,
     pReal: 0.10, severityBias: -1, weight: 5,
-    note: `Inbound delivery window at ${DOCK_NAME[zoneId]} — receiving chocks the roll-up door open from 06:00 to 08:00 while pallets are cross-docked.`,
+    note: `Inbound delivery window at ${DOCK_NAME[zoneId]}, receiving chocks the roll-up door open from 06:00 to 08:00 while pallets are cross-docked.`,
   })),
   ...LOADING_DOCK_ZONE_IDS.map<WeightedRegularity>((zoneId) => ({
     id: `reg_dock_propped_offhours_${zoneId}`,
@@ -267,7 +267,7 @@ const SPECS: WeightedRegularity[] = [
     hourRange: { start: 8, end: 6 },
     sourceId: null,
     pReal: 0.75, severityBias: 1, weight: 3,
-    note: `A dock door held open at ${DOCK_NAME[zoneId]} outside the 06:00–08:00 receiving window is someone defeating the lock — usually a contractor, occasionally not.`,
+    note: `A dock door held open at ${DOCK_NAME[zoneId]} outside the 06:00–08:00 receiving window is someone defeating the lock, usually a contractor, occasionally not.`,
   })),
   {
     id: 'reg_mcr_s2_afterhours',
@@ -287,7 +287,7 @@ const SPECS: WeightedRegularity[] = [
     hourRange: { start: 21, end: 5 },
     sourceId: null,
     pReal: 0.22, severityBias: -1, weight: 6,
-    note: 'Perimeter West faces open tideflat; raccoons and deer walk the fence line nightly and trip the taut-wire and PIR array. Night is usually a real-alarm multiplier — this zone is the exception.',
+    note: 'Perimeter West faces open tideflat; raccoons and deer walk the fence line nightly and trip the taut-wire and PIR array. Night is usually a real-alarm multiplier, this zone is the exception.',
   },
   {
     id: 'reg_hbv_y2_obstruction',
@@ -337,7 +337,7 @@ const SPECS: WeightedRegularity[] = [
     hourRange: null,
     sourceId: null,
     pReal: 0.94, severityBias: 1, weight: 5,
-    note: 'Life-safety channel — a pulled panic station, a body on the floor or a panel in alarm is a person in trouble until proven otherwise.',
+    note: 'Life-safety channel, a pulled panic station, a body on the floor or a panel in alarm is a person in trouble until proven otherwise.',
   },
 ];
 
@@ -428,7 +428,7 @@ export function buildWorld(rng: Rng): WorldState {
     batteryPct: rRng.int(48, 100),
     status: 'available',
     truth: {
-      // The degraded unit's rate is fixed — reg_mcr_r04_glass depends on it.
+      // The degraded unit's rate is fixed, reg_mcr_r04_glass depends on it.
       falsePositiveRate: r.degradedSensor
         ? r.falsePositiveRate
         : clamp(r.falsePositiveRate + rRng.gauss(0, 0.04), 0.08, 0.85),

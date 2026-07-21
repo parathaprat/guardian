@@ -17,7 +17,7 @@ export function hashString(s: string): number {
 }
 
 export class Rng {
-  /** The seed this stream was constructed with — forks derive from it, not from live state. */
+  /** The seed this stream was constructed with, forks derive from it, not from live state. */
   readonly seed: number;
   private state: number;
   /** Box-Muller produces two normals per pass; the unused one is cached here. */
@@ -76,7 +76,7 @@ export class Rng {
       this.gaussSpare = null;
       return mean + sd * v;
     }
-    // Guard against log(0) — next() can legitimately return exactly 0.
+    // Guard against log(0), next() can legitimately return exactly 0.
     const u1 = Math.max(1e-12, this.next());
     const u2 = this.next();
     const mag = Math.sqrt(-2 * Math.log(u1));
@@ -99,7 +99,7 @@ export class Rng {
   /**
    * An independent stream keyed off (parent seed, salt). Derived from the seed
    * rather than the current state so that subsystems consuming different amounts
-   * of entropy can never perturb each other — that is what keeps a live tick
+   * of entropy can never perturb each other, that is what keeps a live tick
    * loop with jittery frame timing from changing the event stream.
    */
   fork(salt: number | string): Rng {

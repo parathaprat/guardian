@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   SENTRY — base layer + shared component vocabulary.
+   SENTRY, base layer + shared component vocabulary.
    Every view is built from these primitives so the product reads as one system.
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -31,7 +31,7 @@ a { color: inherit; text-decoration: none; }
   outline-offset: 2px;
 }
 
-/* Scrollbars — thin, recessive, themed. */
+/* Scrollbars, thin, recessive, themed. */
 * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }
@@ -167,7 +167,7 @@ a { color: inherit; text-decoration: none; }
 .pill--solid { background: var(--surface-invert); color: var(--text-invert); border-color: var(--surface-invert); }
 .pill--accent { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-/* Priority chips — ordinal, and always paired with the literal P0..P3 text
+/* Priority chips, ordinal, and always paired with the literal P0..P3 text
    so priority is never communicated by color alone. */
 .chip-p {
   display: inline-flex; align-items: center; justify-content: center;

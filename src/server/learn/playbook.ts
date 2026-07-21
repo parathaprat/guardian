@@ -1,5 +1,5 @@
 /**
- * CHANNEL C — the playbook.
+ * CHANNEL C, the playbook.
  *
  * Versioned SOP rules. Rules arrive as proposals (from the reflection pass or
  * an operator), get promoted to `active` only on human approval, accrue live
@@ -231,7 +231,7 @@ export class Playbook implements PlaybookStore {
   }
 
   addProposal(p: PlaybookProposal): void {
-    // Proposed rules live inside the proposal until approved — `rules()` stays
+    // Proposed rules live inside the proposal until approved, `rules()` stays
     // the real SOP book, not a mix of drafts and policy.
     const stored: PlaybookProposal = {
       ...p,
@@ -356,7 +356,7 @@ export class Playbook implements PlaybookStore {
   reset(): void {
     this.byId.clear();
     this.proposals_ = [];
-    // The inherited SOP is part of the world, not something we learned — a
+    // The inherited SOP is part of the world, not something we learned, a
     // memory wipe puts the mediocre rules back so the demo can rerun.
     for (const r of seedRules(this.seededAt)) this.byId.set(r.id, r);
   }

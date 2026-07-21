@@ -33,7 +33,7 @@
                 │                                          ▲
                 ▼                                          │
 ┌───────────────────────────────────────────────────────────┴───────────┐
-│  MEMORY  (four channels — this is the feedback loop)                   │
+│  MEMORY  (four channels, this is the feedback loop)                   │
 │  A  Calibration   Beta-Bernoulli P(real) per zone×type×hour, w/ backoff│
 │  B  Responders    Beta posteriors + Thompson sampling over guards      │
 │  C  Playbook      LLM-drafted SOP rules, human-approved, auto-retired  │
@@ -50,13 +50,13 @@ memory varies. That is what isolates the *learning* contribution from the
 
 It also buys three things for free:
 
-- **Runs with no API key.** Swap the judgment layer for `ReasonerAgent` — an
-  explicit expected-cost policy — and the entire product still works. A reviewer
+- **Runs with no API key.** Swap the judgment layer for `ReasonerAgent`, an
+  explicit expected-cost policy, and the entire product still works. A reviewer
   who can't get a key still sees everything.
 - **Fast, free evals.** 400-event replays run in seconds instead of costing dollars.
 - **Attribution.** Because evidence is gathered through typed tools, every decision
   carries `EvidenceRef[]` citing exactly which learned object moved it, with a
-  signed weight. The UI renders that as the evidence rail — the agent doesn't just
+  signed weight. The UI renders that as the evidence rail, the agent doesn't just
   show its reasoning, it shows *which memory* caused the reasoning.
 
 ## Ground-truth containment
@@ -88,7 +88,7 @@ the operator watches the agent think in real time rather than waiting for a verd
 ## Transport
 
 One SSE stream (`GET /api/stream`) carrying a discriminated `ServerEvent` union.
-The client fetches `/api/snapshot` once, then applies targeted patches — upsert
+The client fetches `/api/snapshot` once, then applies targeted patches, upsert
 incident by id, append trace step, replace metrics wholesale. No polling, no
 websocket dependency, no state-sync library.
 

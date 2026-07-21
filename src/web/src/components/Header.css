@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Header — the Calvis nav, adapted to an ops console.
+   Header, the Calvis nav, adapted to an ops console.
    Three-track grid so the tab bar sits on the true optical centre regardless
    of how wide the left and right clusters grow.
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -86,7 +86,7 @@
 .hdr-tab:hover { color: var(--text-primary); }
 .hdr-tab[aria-current='page'] { color: var(--text-primary); }
 
-/* The single strongest active signal on the screen — 2px of brand orange. */
+/* The single strongest active signal on the screen, 2px of brand orange. */
 .hdr-tab::after {
   content: '';
   position: absolute;
@@ -323,17 +323,50 @@
   color: var(--status-warn);
 }
 
-/* ── Narrow displays: shed the least load-bearing chrome first ──────────── */
+/* ── Narrow displays: shed the least load-bearing chrome first ──────────────
+   The breakpoints below are set from what the three clusters actually measure,
+   not from round numbers. The earlier set started at 1440, which a 14" MacBook
+   (2940 physical, 1470 CSS) clears by 30px while still needing ~80px more than
+   it has: the right cluster overflowed its track and painted over the tab bar.
+   Anything that can collide is now gone before it can.                        */
 
-@media (max-width: 1440px) {
+@media (max-width: 1680px) {
   .hdr-desc { display: none; }
   .hdr-tabs { gap: var(--s4); }
 }
-@media (max-width: 1280px) {
+
+@media (max-width: 1520px) {
   .hdr-seed { display: none; }
   .hdr { padding-left: var(--s4); }
-}
-@media (max-width: 1120px) {
-  .hdr-clock-d { display: none; }
   .hdr-right { gap: var(--s3); }
+}
+
+@media (max-width: 1360px) {
+  .hdr-clock-d { display: none; }
+  .hdr-seg-b { min-width: 26px; padding: 0 4px; }
+}
+
+@media (max-width: 1220px) {
+  /* The product block is the last decorative thing standing. */
+  .hdr-product, .hdr-left .hdr-rule { display: none; }
+}
+
+/* Below this nothing sheds gracefully any further, so the tab bar takes its own
+   row. A console that wraps is readable; a console that overlaps is not. */
+@media (max-width: 1080px) {
+  .hdr {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: var(--header-h) auto;
+    height: auto;
+    padding-bottom: var(--s2);
+  }
+  .hdr-tabs {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    height: auto;
+    justify-content: flex-start;
+    gap: var(--s5);
+    padding-top: var(--s1);
+  }
+  .hdr-tab::after { bottom: -6px; }
 }

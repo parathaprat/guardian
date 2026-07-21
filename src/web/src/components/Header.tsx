@@ -61,7 +61,7 @@ export default function Header({
   return (
     <header className="hdr">
       <div className="hdr-left">
-        <a className="hdr-word" href="#dispatch" aria-label="Calvis — Sentry home">
+        <a className="hdr-word" href="#dispatch" aria-label="Calvis. Sentry home">
           Calvis<span className="dot-accent" />
         </a>
         <span className="hdr-rule" aria-hidden="true" />
@@ -174,7 +174,7 @@ export default function Header({
 /**
  * The server only emits `controls` on state changes, so the displayed clock is
  * interpolated between them: sim ms advance at `speed` × real ms while running.
- * Date.now() here is real wall-clock for UI smoothing only — it never touches
+ * Date.now() here is real wall-clock for UI smoothing only, it never touches
  * simulation or memory logic.
  */
 function useSimClock(controls: SimControls | null): { date: string; time: string } | null {
@@ -232,7 +232,7 @@ function SeedField({ seed, onCommit }: { seed: number | null; onCommit: (seed: n
         inputMode="numeric"
         spellCheck={false}
         disabled={seed === null}
-        aria-label="Simulation seed — press Enter to reseed"
+        aria-label="Simulation seed, press Enter to reseed"
         onChange={(e) => setDraft(e.target.value.replace(/[^0-9-]/g, ''))}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -249,7 +249,7 @@ function SeedField({ seed, onCommit }: { seed: number | null; onCommit: (seed: n
 function EnginePill({ engine }: { engine: EngineStatus | null }) {
   const isClaude = engine?.engine === 'claude';
   const text = engine === null
-    ? 'Engine · —'
+    ? 'Engine ·,'
     : isClaude
       ? `Claude · ${prettyModel(engine.model)}`
       : 'Reasoner · Local';
@@ -267,8 +267,8 @@ function EnginePill({ engine }: { engine: EngineStatus | null }) {
       </button>
       <div className="hdr-pop" role="tooltip">
         <div className="label hdr-pop-head">Decision engine</div>
-        <PopRow k="Model" v={engine?.model ?? '—'} />
-        <PopRow k="Effort" v={engine?.effort ?? '—'} />
+        <PopRow k="Model" v={engine?.model ?? '-'} />
+        <PopRow k="Effort" v={engine?.effort ?? '-'} />
         <div className="hdr-pop-sep" />
         <PopRow k="Calls" v={num(engine?.callsMade)} />
         <PopRow k="Failed" v={num(engine?.callsFailed)} warn={(engine?.callsFailed ?? 0) > 0} />
@@ -293,7 +293,7 @@ function PopRow({ k, v, warn }: { k: string; v: string; warn?: boolean }) {
 
 const FMT = new Intl.NumberFormat('en-US');
 function num(v: number | undefined): string {
-  return v === undefined ? '—' : FMT.format(v);
+  return v === undefined ? '-' : FMT.format(v);
 }
 
 /** `claude-opus-4-8[1m]` → `Opus 4.8`. Falls back to the raw id, uppercased. */

@@ -1,5 +1,5 @@
 /**
- * SENTRY — the Claude judgment layer.
+ * SENTRY, the Claude judgment layer.
  *
  * A manual agentic loop rather than the SDK tool runner, because the whole point
  * of this screen is inspectability: we need to capture every thinking block and
@@ -183,7 +183,7 @@ export class ClaudeAgent implements DispatchAgent {
         }
 
         if (res.stop_reason !== 'tool_use' || toolUses.length === 0) {
-          // No tool call and no submit — nothing more to drive the loop with.
+          // No tool call and no submit, nothing more to drive the loop with.
           break;
         }
 
@@ -213,14 +213,14 @@ export class ClaudeAgent implements DispatchAgent {
       }
 
       // Ran out of turns without committing.
-      emit(mkStep('error', 'Turn budget exhausted — falling back to the local Reasoner', t0, {
+      emit(mkStep('error', 'Turn budget exhausted, falling back to the local Reasoner', t0, {
         detail: `The model used all ${MAX_TURNS} turns without calling ${SUBMIT_TOOL_NAME}.`,
       }));
       return this.viaFallback(ctx, trace, t0);
     } catch (err) {
       this.opts.onFailure(err);
       const msg = err instanceof Error ? err.message : String(err);
-      emit(mkStep('error', 'Claude call failed — falling back to the local Reasoner', t0, { detail: msg }));
+      emit(mkStep('error', 'Claude call failed, falling back to the local Reasoner', t0, { detail: msg }));
       return this.viaFallback(ctx, trace, t0);
     }
   }

@@ -1,5 +1,5 @@
 /**
- * SENTRY — server entrypoint.
+ * SENTRY, server entrypoint.
  *
  * Serves the API, and the built console too when `dist/web` exists, so
  * `npm run build && npm start` gives a single-port production app.

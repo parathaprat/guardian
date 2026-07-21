@@ -1,11 +1,11 @@
 /**
- * Display formatters. Pure, allocation-light, and safe on garbage input — these
+ * Display formatters. Pure, allocation-light, and safe on garbage input, these
  * run inside render, on a stream that never stops.
  */
 
 import type { SimTime } from '../../../shared/types';
 
-const EM_DASH = '—';
+const EM_DASH = '-';
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
@@ -18,7 +18,7 @@ export function fmtClock(ts: SimTime): string {
   return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
 }
 
-/** HH:MM only — for dense tables where seconds are noise. */
+/** HH:MM only, for dense tables where seconds are noise. */
 export function fmtClockShort(ts: SimTime): string {
   if (!Number.isFinite(ts)) return '--:--';
   const d = new Date(ts);
@@ -27,7 +27,7 @@ export function fmtClockShort(ts: SimTime): string {
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
-/** "TUE 04:12" — used when a list spans more than a day. */
+/** "TUE 04:12", used when a list spans more than a day. */
 export function fmtDayClock(ts: SimTime): string {
   if (!Number.isFinite(ts)) return EM_DASH;
   const d = new Date(ts);
@@ -61,25 +61,25 @@ const UP = '↑';
 const DOWN = '↓';
 const FLAT = '→';
 
-/** Direction glyph alone — for cases that colour the arrow separately from the number. */
+/** Direction glyph alone, for cases that colour the arrow separately from the number. */
 export function deltaArrow(n: number): string {
   if (!Number.isFinite(n) || Math.abs(n) < 1e-9) return FLAT;
   return n > 0 ? UP : DOWN;
 }
 
-/** "↑1.4" · "↓0.3" · "→0.0" — signed magnitude behind a direction glyph. */
+/** "↑1.4" · "↓0.3" · "→0.0", signed magnitude behind a direction glyph. */
 export function fmtDelta(n: number, digits = 1): string {
   if (!Number.isFinite(n)) return EM_DASH;
   return `${deltaArrow(n)}${Math.abs(n).toFixed(digits)}`;
 }
 
-/** Same, for deltas between two 0..1 rates — reported in percentage points. */
+/** Same, for deltas between two 0..1 rates, reported in percentage points. */
 export function fmtDeltaPct(n: number, digits = 1): string {
   if (!Number.isFinite(n)) return EM_DASH;
   return `${deltaArrow(n)}${Math.abs(n * 100).toFixed(digits)}pp`;
 }
 
-/** "+3" / "-3" / "0" — where the sign matters but a glyph would be too loud. */
+/** "+3" / "-3" / "0", where the sign matters but a glyph would be too loud. */
 export function fmtSigned(n: number, digits = 0): string {
   if (!Number.isFinite(n)) return EM_DASH;
   const s = n.toFixed(digits);

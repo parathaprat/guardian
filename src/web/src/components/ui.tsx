@@ -1,5 +1,5 @@
 /**
- * Shared UI primitives. Thin wrappers over the vocabulary in base.css — the
+ * Shared UI primitives. Thin wrappers over the vocabulary in base.css, the
  * point is that every view spells "panel", "label", "priority" the same way.
  */
 
@@ -63,7 +63,7 @@ const OUTCOME_TEXT: Record<ResolutionOutcome, string> = {
   unresolved: 'Unresolved',
 };
 
-/** Status is never colour-alone — the dot always ships with its word. */
+/** Status is never colour-alone, the dot always ships with its word. */
 export function StatusDot({ tone, children, live, className }: {
   tone: 'good' | 'warn' | 'serious' | 'crit' | 'idle';
   children: ReactNode; live?: boolean; className?: string;
@@ -96,7 +96,7 @@ export function ResponderStatusDot({ status }: { status: ResponderStatus }) {
 export function Panel({ eyebrow, title, actions, children, className, bodyClassName, scroll, bodyRef }: {
   eyebrow?: ReactNode; title?: ReactNode; actions?: ReactNode; children?: ReactNode;
   className?: string; bodyClassName?: string; scroll?: boolean;
-  /** For panes that must measure themselves — the site map sizes to its box. */
+  /** For panes that must measure themselves, the site map sizes to its box. */
   bodyRef?: Ref<HTMLDivElement>;
 }) {
   return (

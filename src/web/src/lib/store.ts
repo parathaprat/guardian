@@ -3,7 +3,7 @@
  * and a reducer that turns each `ServerEvent` into a targeted patch.
  *
  * Every selector below returns a value that is *referentially stable* while the
- * underlying data is unchanged — that is what keeps `useSyncExternalStore` from
+ * underlying data is unchanged, that is what keeps `useSyncExternalStore` from
  * re-rendering on every frame of the event stream, and it is the one invariant
  * to preserve when adding a selector.
  */
@@ -36,9 +36,9 @@ export type QueueFilter = 'needs' | 'open' | 'all';
  * the choice persists.
  */
 export interface UiPrefs {
-  /** The raw event feed column. Off by default — it is context, not work. */
+  /** The raw event feed column. Off by default, it is context, not work. */
   ingestOpen: boolean;
-  /** The tool-call / trace inspector. Off by default — it is the technical view. */
+  /** The tool-call / trace inspector. Off by default, it is the technical view. */
   workOpen: boolean;
   queueFilter: QueueFilter;
 }
@@ -57,7 +57,7 @@ export interface StoreState {
   selectedIncidentId: string | null;
   toasts: Toast[];
   theme: Theme;
-  /** True once a full snapshot has landed — views should skeleton until then. */
+  /** True once a full snapshot has landed, views should skeleton until then. */
   ready: boolean;
   /** Last transport error, cleared by the next successful load. */
   error: string | null;
@@ -65,7 +65,7 @@ export interface StoreState {
   /**
    * The incident ids the queue is *currently showing*, in display order.
    * Published by the view so `j`/`k` walk what the operator can see rather than
-   * the raw arrival order — the two diverge the moment a filter or sort applies.
+   * the raw arrival order, the two diverge the moment a filter or sort applies.
    */
   queueIds: readonly string[];
 }
@@ -99,7 +99,7 @@ const EMPTY_CONTROLS: SimControls = {
   running: false, speed: 1, seed: 0, simTime: 0, eventsGenerated: 0,
 };
 const EMPTY_ENGINE: EngineStatus = {
-  engine: 'reasoner', model: '—', effort: '—', note: null,
+  engine: 'reasoner', model: '-', effort: '-', note: null,
   callsMade: 0, callsFailed: 0, tokensIn: 0, tokensOut: 0, cachedTokensRead: 0,
 };
 
@@ -138,7 +138,7 @@ function setState(patch: Partial<StoreState>): void {
 }
 
 /**
- * Selector hook. The selector MUST return a referentially stable value —
+ * Selector hook. The selector MUST return a referentially stable value,
  * a slice of state, or an object already living inside it. Never build a new
  * array or object here; derive with `useMemo` in the component instead.
  */
@@ -368,7 +368,7 @@ export function setTheme(theme: Theme): void {
   try {
     localStorage.setItem(THEME_KEY, theme);
   } catch {
-    /* private mode — the session still works, it just won't persist */
+    /* private mode, the session still works, it just won't persist */
   }
   if (state.theme !== theme) setState({ theme });
 }
@@ -423,7 +423,7 @@ export function setUi(patch: Partial<UiPrefs>): void {
   try {
     localStorage.setItem(UI_KEY, JSON.stringify(ui));
   } catch {
-    /* private mode — the preference just won't survive a reload */
+    /* private mode, the preference just won't survive a reload */
   }
 }
 

@@ -1,7 +1,7 @@
 /* The shell: a fixed grid. The page never scrolls; panes do. */
 
 /* Flex, not grid.
-   This was `grid-template-rows: var(--header-h) auto 1fr` — three rows for what
+   This was `grid-template-rows: var(--header-h) auto 1fr`, three rows for what
    is usually two children, because the connection banner only mounts when the
    stream drops. With no banner, <main> landed in the content-sized `auto` row
    and the `1fr` row held open a dead band at the bottom of the viewport,

@@ -1,5 +1,5 @@
 /**
- * MEMORY — what the agent has learned, and the human gate on the playbook.
+ * MEMORY, what the agent has learned, and the human gate on the playbook.
  *
  * The learned channels that have a home of their own, all inspectable and all
  * editable by the operator. Responder models live on Roster and precedent
@@ -169,7 +169,7 @@ function CalibrationSection({ cells }: { cells: readonly CalibrationCell[] }) {
         <Panel eyebrow="Posterior grid" title={EVENT_LABELS[effective]}>
           {heat.length === 0
             ? <EmptyState title="No observations yet">
-                This event type has not resolved anywhere yet. Let the stream run — cells fill in as incidents close.
+                This event type has not resolved anywhere yet. Let the stream run, cells fill in as incidents close.
               </EmptyState>
             : <Heatmap
                 rows={rows}
@@ -193,7 +193,7 @@ function CalibrationSection({ cells }: { cells: readonly CalibrationCell[] }) {
                     const z = world.zones.find((zz) => zz.id === c.zoneId);
                     return (
                       <tr key={c.key}>
-                        <td className="mono">{z?.code ?? '—'}</td>
+                        <td className="mono">{z?.code ?? '-'}</td>
                         <td>{EVENT_LABELS[c.type]}</td>
                         <td className="mono muted">{c.hourBucket === null ? 'any' : fmtHourBucket(c.hourBucket)}</td>
                         <td className="r mono">
@@ -288,7 +288,7 @@ function RuleCard({ rule }: { rule: PlaybookRule }) {
         <div className="rule-stat">
           <Label>Precision</Label>
           <ConfidenceBar value={rule.stats.precision} className="rule-meter" />
-          <span className="mono">{rule.stats.applied > 0 ? fmtPct(rule.stats.precision) : '—'}</span>
+          <span className="mono">{rule.stats.applied > 0 ? fmtPct(rule.stats.precision) : '-'}</span>
         </div>
         <div className="rule-stat"><Label>Overridden</Label><span className="mono">{rule.stats.overridden}</span></div>
         <div className="rule-actions">
