@@ -493,7 +493,7 @@ function WorkDisclosure({ incident }: { incident: Incident }) {
         onClick={() => toggleUi('workOpen')}
         aria-expanded={ui.workOpen}
       >
-        <span className="work-caret" aria-hidden>{ui.workOpen ? '−' : '+'}</span>
+        <span className="work-caret" aria-hidden>{ui.workOpen ? '-' : '+'}</span>
         <span className="work-title">Show Sentry's working</span>
         <span className="work-count mono">{live ? 'live' : `${n} step${n === 1 ? '' : 's'}`}</span>
         <Kbd>E</Kbd>
@@ -531,7 +531,7 @@ function TraceInspector({ steps, live }: { steps: TraceStep[]; live: boolean }) 
                   <span className="trace-kind label">{s.kind.replace('_', ' ')}</span>
                   <span className="trace-label truncate">{s.label}</span>
                   <span className="trace-dur mono">{s.durationMs}ms</span>
-                  {expandable && <span className="trace-caret">{isOpen ? '−' : '+'}</span>}
+                  {expandable && <span className="trace-caret">{isOpen ? '-' : '+'}</span>}
                 </button>
 
                 {s.kind === 'thinking' && s.detail && <p className="trace-think">{s.detail}</p>}

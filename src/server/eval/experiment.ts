@@ -129,7 +129,7 @@ export function summarise(results: SeedResult[]): ExperimentSummary {
   const lifts = results.map((r) => r.liftPoints);
   const mean = n > 0 ? lifts.reduce((a, b) => a + b, 0) / n : 0;
 
-  // Sample variance (n−1). With n−0 the interval would be too narrow, which is
+  // Sample variance (n-1). With n-0 the interval would be too narrow, which is
   // the same sin as quoting the best seed, just better disguised.
   const variance = n > 1
     ? lifts.reduce((acc, v) => acc + (v - mean) ** 2, 0) / (n - 1)
@@ -164,7 +164,7 @@ function buildNotes(seedCount: number, eventCount: number, engine: string): stri
   return [
     `${seedCount} independently seeded worlds, ${eventCount} scored events each, judged by the ${engine} engine.`,
     'Each world runs the standard protocol: one event stream generated once and replayed verbatim through all three arms, every arm rebuilt from the same seed, learning applied online and strictly after each decision is committed.',
-    'The reported interval is a 95% confidence interval on the mean lift across worlds, using the t distribution with n−1 degrees of freedom. It describes variation between worlds, not measurement error within one.',
+    'The reported interval is a 95% confidence interval on the mean lift across worlds, using the t distribution with n-1 degrees of freedom. It describes variation between worlds, not measurement error within one.',
     'Seeds are derived deterministically from the base seed, so the whole experiment reproduces exactly. No seed is selected after seeing its result.',
     'This remains a claim about a simulated world whose regularities were authored here. It establishes that the learning loop closes and by how much, not that the same margin would appear on a real portfolio.',
   ].join('\n');

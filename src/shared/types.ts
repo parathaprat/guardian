@@ -548,7 +548,7 @@ export interface EvalRun {
   eventCount: number;
   engine: 'claude' | 'reasoner';
   arms: EvalArm[];
-  /** learned − static, per metric. The headline number. */
+  /** learned - static, per metric. The headline number. */
   delta: Partial<Record<keyof Metrics, number>>;
   durationMs: number;
   notes: string;
@@ -559,11 +559,11 @@ export interface SeedResult {
   staticScore: number;
   coldScore: number;
   learnedScore: number;
-  /** learned − static, in points of dispatchScore. */
+  /** learned - static, in points of dispatchScore. */
   liftPoints: number;
   /** The same lift as a percentage of the static baseline. */
   liftPct: number;
-  /** learned − cold: the value of prior experience specifically. */
+  /** learned - cold: the value of prior experience specifically. */
   priorExperiencePoints: number;
   missedCriticalStatic: number;
   missedCriticalLearned: number;
@@ -585,7 +585,7 @@ export interface ExperimentSummary {
   ciLowPoints: number;
   ciHighPoints: number;
   meanLiftPct: number;
-  /** Mean of learned − cold: prior experience, isolated from online learning. */
+  /** Mean of learned - cold: prior experience, isolated from online learning. */
   meanPriorExperiencePoints: number;
   /**
    * True when the whole 95% interval sits above zero. This is the sentence the

@@ -33,11 +33,11 @@ to learn.
 `dispatchScore` is 0–100:
 
 ```
-0.30 × (1 − missedCriticalRate)
-0.25 × (1 − falseDispatchRate)
+0.30 × (1 - missedCriticalRate)
+0.25 × (1 - falseDispatchRate)
 0.20 × operatorAgreementRate
 0.15 × truePositiveActionRate
-0.10 × max(0, 1 − medianDecisionLatencyMs / 30 000)
+0.10 × max(0, 1 - medianDecisionLatencyMs / 30 000)
 ```
 
 **Why these weights.**
@@ -99,7 +99,7 @@ three arms.
 **Online learning.** Within every arm each event is decided first, resolved
 second, folded into that arm's memory third. No arm can see an outcome before it
 has committed. This means the *cold* arm also improves during the run, so
-`learned − cold` is the value of prior experience, and `learned − static` is the
+`learned - cold` is the value of prior experience, and `learned - static` is the
 headline delta.
 
 ---

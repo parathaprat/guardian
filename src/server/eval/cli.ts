@@ -91,7 +91,7 @@ function printExperiment(exp: Experiment): void {
   const s = exp.summary;
   const w = 76;
 
-  console.log(`${B}PER WORLD${R}  ${DIM}learned − static, in points of dispatch score${R}`);
+  console.log(`${B}PER WORLD${R}  ${DIM}learned - static, in points of dispatch score${R}`);
   // A text strip chart: every seed visible, so nobody has to trust the mean.
   const max = Math.max(...exp.seeds.map((r) => Math.abs(r.liftPoints)), 1);
   for (const r of exp.seeds) {
@@ -112,11 +112,11 @@ function printExperiment(exp: Experiment): void {
   console.log(`  ${pad('Worlds where learning won', 34)}${B}${s.wins}/${exp.seeds.length}${R}  ${DIM}(${pct(s.winRate)})${R}`);
   console.log(`  ${pad('Mean lift', 34)}${B}${s.meanLiftPoints >= 0 ? '+' : ''}${s.meanLiftPoints.toFixed(2)}${R} points  ${DIM}(${s.meanLiftPct >= 0 ? '+' : ''}${s.meanLiftPct.toFixed(1)}%)${R}`);
   console.log(`  ${pad('95% confidence interval', 34)}[${s.ciLowPoints.toFixed(2)}, ${s.ciHighPoints.toFixed(2)}]  ${DIM}sd ${s.sdLiftPoints.toFixed(2)}${R}`);
-  console.log(`  ${pad('Of which prior experience', 34)}${s.meanPriorExperiencePoints >= 0 ? '+' : ''}${s.meanPriorExperiencePoints.toFixed(2)} points  ${DIM}(learned − cold)${R}`);
+  console.log(`  ${pad('Of which prior experience', 34)}${s.meanPriorExperiencePoints >= 0 ? '+' : ''}${s.meanPriorExperiencePoints.toFixed(2)} points  ${DIM}(learned - cold)${R}`);
 
   const verdict = s.significant
-    ? `${GREEN}${B}LEARNING HELPS${R}, the whole 95% interval sits above zero.`
-    : `${ORANGE}${B}NOT ESTABLISHED${R}, the interval includes zero. More worlds, or the effect is not there.`;
+    ? `${GREEN}${B}LEARNING HELPS${R}: the whole 95% interval sits above zero.`
+    : `${ORANGE}${B}NOT ESTABLISHED${R}: the interval includes zero. Run more worlds, or the effect is not there.`;
   console.log(`\n  ${verdict}`);
   console.log(`  ${DIM}completed in ${(exp.durationMs / 1000).toFixed(1)}s${R}\n`);
 

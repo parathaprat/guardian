@@ -376,7 +376,7 @@ function ProposalDiff({ proposal, rules }: { proposal: PlaybookProposal; rules: 
           <div key={r.ruleId} className="diff-row is-retire">
             <span className="diff-check" aria-hidden />
             <div className="diff-main">
-              <div className="diff-tag is-retire">− RETIRE</div>
+              <div className="diff-tag is-retire">- RETIRE</div>
               <div className="diff-new"><strong className="diff-strike">{rule?.title ?? r.ruleId}</strong></div>
               <p className="diff-why">{r.reason}</p>
             </div>

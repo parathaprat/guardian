@@ -339,7 +339,7 @@ export const computeLearningCurve: ComputeLearningCurve = (
   return points;
 };
 
-/** learned − static, for every numeric field of Metrics. */
+/** learned - static, for every numeric field of Metrics. */
 export function metricDelta(learned: Metrics, baseline: Metrics): Partial<Record<keyof Metrics, number>> {
   const out: Partial<Record<keyof Metrics, number>> = {};
   for (const key of Object.keys(learned) as Array<keyof Metrics>) {
