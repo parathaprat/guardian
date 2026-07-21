@@ -1,0 +1,208 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SENTRY — design tokens
+   Derived from the Calvis brand system (calvis.com): Metropolis, ink #0D0D0D,
+   paper #F6F6F6, single orange accent #EA5112, zero border-radius, mono
+   micro-labels with wide tracking.
+
+   Chart scales are NOT hand-picked — every scale below was run through the
+   dataviz palette validator (lightness band, chroma floor, CVD separation
+   under Machado 2009, normal-vision floor, surface contrast). Results are
+   recorded in docs/PALETTE.md.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: 'Metropolis';
+  src: url('/fonts/metropolis-400.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap; size-adjust: 90%;
+}
+@font-face {
+  font-family: 'Metropolis';
+  src: url('/fonts/metropolis-500.woff2') format('woff2');
+  font-weight: 500; font-style: normal; font-display: swap; size-adjust: 90%;
+}
+@font-face {
+  font-family: 'Metropolis';
+  src: url('/fonts/metropolis-700.woff2') format('woff2');
+  font-weight: 700; font-style: normal; font-display: swap; size-adjust: 90%;
+}
+
+:root {
+  color-scheme: light;
+
+  /* ── Type ─────────────────────────────────────────────────────────────── */
+  --font-sans: 'Metropolis', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: 'SF Mono', SFMono-Regular, ui-monospace, Menlo, Consolas, monospace;
+
+  --tracking-label: 0.15em;   /* mono eyebrow labels  */
+  --tracking-tight: -0.02em;  /* display headlines    */
+  --tracking-micro: 0.08em;
+
+  /* ── Surfaces & ink (Calvis) ──────────────────────────────────────────── */
+  --ink:            #0D0D0D;
+  --ink-2:          #333333;
+  --ink-3:          #666666;
+  --ink-4:          #999999;
+  --paper:          #FFFFFF;
+  --paper-2:        #F6F6F6;
+  --paper-3:        #EFEFEF;
+  --line:           #E0E0E0;
+  --line-strong:    #CCCCCC;
+
+  --text-primary:   var(--ink);
+  --text-secondary: #555555;
+  --text-muted:     #8A8A8A;
+
+  --surface:        var(--paper);
+  --surface-sunken: var(--paper-2);
+  --surface-raised: var(--paper);
+  --surface-invert: var(--ink);
+  --text-invert:    #F6F6F6;
+
+  /* ── Brand accent ─────────────────────────────────────────────────────── */
+  --accent:         #EA5112;
+  --accent-hover:   #C9430C;
+  --accent-wash:    #FDF0EA;
+
+  /* ── Status (reserved — never reused as a series color) ───────────────── */
+  --status-good:    #0E7A4E;
+  --status-warn:    #B06A00;
+  --status-serious: #C1470E;
+  --status-crit:    #B3231C;
+  --status-good-wash:    #E8F4EE;
+  --status-warn-wash:    #FAF1E0;
+  --status-serious-wash: #FBEDE6;
+  --status-crit-wash:    #FBEAE9;
+
+  /* ── Priority (ordinal — P0 hottest) ──────────────────────────────────── */
+  --p0: #B3231C;
+  --p1: #EA5112;
+  --p2: #B06A00;
+  --p3: #6E6E6E;
+
+  /* ── Chart: categorical, 3 slots (validated all-pairs, light) ─────────── */
+  --series-1: #2F5E9E;   /* blue  */
+  --series-2: #EA5112;   /* orange — brand accent */
+  --series-3: #0E8A6B;   /* teal  */
+
+  /* ── Chart: ordinal ramp for the 3 eval arms (static → cold → learned) ── */
+  --arm-1: #E39A73;
+  --arm-2: #DC6B33;
+  --arm-3: #9C3409;
+
+  /* ── Chart: sequential 5-step, P(real) heatmap (validated, light) ─────── */
+  --seq-1: #E39A73;
+  --seq-2: #D87F4E;
+  --seq-3: #C9612C;
+  --seq-4: #AB4715;
+  --seq-5: #7A2A07;
+  --seq-empty: #EDEDED;   /* no observations yet */
+
+  --grid:      #ECECEC;
+  --axis:      #CFCFCF;
+
+  /* ── Geometry ─────────────────────────────────────────────────────────── */
+  --radius: 0;               /* Calvis uses hard corners everywhere */
+  --hair: 1px;
+  --shadow-pop: 0 8px 32px rgba(13, 13, 13, 0.12);
+  --shadow-card: 0 1px 0 rgba(13, 13, 13, 0.04);
+
+  /* ── Space scale ──────────────────────────────────────────────────────── */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+
+  --header-h: 60px;
+  --rail-w: 336px;
+
+  --dur-fast: 110ms;
+  --dur: 180ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ═══ DARK — an ops-floor theme, selected step-by-step, not an auto-flip ═══ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --ink:            #F2F2F0;
+  --ink-2:          #D1D1D1;
+  --ink-3:          #999999;
+  --ink-4:          #666666;
+  --paper:          #141413;
+  --paper-2:        #1B1B1A;
+  --paper-3:        #232322;
+  --line:           #2E2E2C;
+  --line-strong:    #3D3D3A;
+
+  --text-primary:   #F2F2F0;
+  --text-secondary: #B4B4AE;
+  --text-muted:     #7E7E78;
+
+  --surface:        #141413;
+  --surface-sunken: #0E0E0D;
+  --surface-raised: #1B1B1A;
+  --surface-invert: #F2F2F0;
+  --text-invert:    #0D0D0D;
+
+  --accent:         #F2762F;
+  --accent-hover:   #FF8A45;
+  --accent-wash:    #2A1509;
+
+  --status-good:    #2FB37A;
+  --status-warn:    #D69A2E;
+  --status-serious: #EE7B3D;
+  --status-crit:    #E8615C;
+  --status-good-wash:    #10251C;
+  --status-warn-wash:    #2A2110;
+  --status-serious-wash: #2B1810;
+  --status-crit-wash:    #2C1414;
+
+  --p0: #E8615C;
+  --p1: #F2762F;
+  --p2: #D69A2E;
+  --p3: #8A8A84;
+
+  --series-1: #5E97CE;
+  --series-2: #E0691F;
+  --series-3: #12A87C;
+
+  --arm-1: #8A4519;
+  --arm-2: #C4742F;
+  --arm-3: #F0B27A;
+
+  --seq-1: #8A4519;
+  --seq-2: #A85A24;
+  --seq-3: #C4742F;
+  --seq-4: #DC9150;
+  --seq-5: #F0B27A;
+  --seq-empty: #232322;
+
+  --grid: #242423;
+  --axis: #353533;
+
+  --shadow-pop: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Respect the OS setting until the user picks a theme explicitly. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    color-scheme: dark;
+    --ink: #F2F2F0; --ink-2: #D1D1D1; --ink-3: #999999; --ink-4: #666666;
+    --paper: #141413; --paper-2: #1B1B1A; --paper-3: #232322;
+    --line: #2E2E2C; --line-strong: #3D3D3A;
+    --text-primary: #F2F2F0; --text-secondary: #B4B4AE; --text-muted: #7E7E78;
+    --surface: #141413; --surface-sunken: #0E0E0D; --surface-raised: #1B1B1A;
+    --surface-invert: #F2F2F0; --text-invert: #0D0D0D;
+    --accent: #F2762F; --accent-hover: #FF8A45; --accent-wash: #2A1509;
+    --status-good: #2FB37A; --status-warn: #D69A2E; --status-serious: #EE7B3D; --status-crit: #E8615C;
+    --status-good-wash: #10251C; --status-warn-wash: #2A2110;
+    --status-serious-wash: #2B1810; --status-crit-wash: #2C1414;
+    --p0: #E8615C; --p1: #F2762F; --p2: #D69A2E; --p3: #8A8A84;
+    --series-1: #5E97CE; --series-2: #E0691F; --series-3: #12A87C;
+    --arm-1: #8A4519; --arm-2: #C4742F; --arm-3: #F0B27A;
+    --seq-1: #8A4519; --seq-2: #A85A24; --seq-3: #C4742F; --seq-4: #DC9150; --seq-5: #F0B27A;
+    --seq-empty: #232322;
+    --grid: #242423; --axis: #353533;
+    --shadow-pop: 0 8px 32px rgba(0, 0, 0, 0.5);
+    --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.3);
+  }
+}

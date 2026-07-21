@@ -1,0 +1,297 @@
+/* Chart styling. Every colour comes from a token so both themes work for free,
+   and every fill is set on the SVG element itself rather than here. */
+
+.chart {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.chart-svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+  touch-action: none;
+}
+
+.chart-grid line,
+.chart-grid path {
+  stroke: var(--grid);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.chart-axis-line {
+  stroke: var(--axis);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.chart-axis-text {
+  fill: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: var(--tracking-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Values printed directly on marks — text never wears the series colour. */
+.chart-value-text {
+  fill: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.chart-crosshair {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  pointer-events: none;
+}
+
+.chart-cell { cursor: pointer; }
+
+/* ── Legend ─────────────────────────────────────────────────────────────── */
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s4);
+  margin-top: var(--s3);
+}
+
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chart-legend-key {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  background: currentColor;
+}
+
+.chart-legend-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.chart-legend-value {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Tooltip ────────────────────────────────────────────────────────────── */
+
+.chart-tip {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  min-width: 128px;
+  max-width: 260px;
+  padding: var(--s2) var(--s3);
+  background: var(--surface-invert);
+  color: var(--text-invert);
+  border: none;
+  box-shadow: var(--shadow-pop);
+}
+
+.chart-tip-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 5px;
+}
+
+.chart-tip-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.chart-tip-key {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  background: currentColor;
+}
+
+.chart-tip-label {
+  flex: 1 1 auto;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-tip-val {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.chart-tip-sub,
+.chart-tip-note {
+  font-size: 10px;
+  opacity: 0.62;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
+/* ── Sequential legend strip (heatmap) ──────────────────────────────────── */
+
+.chart-seq-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+
+.chart-seq-strip { display: flex; }
+
+.chart-seq-swatch {
+  width: 22px;
+  height: 8px;
+}
+
+.chart-seq-ends {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: var(--tracking-micro);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ── Donut ──────────────────────────────────────────────────────────────── */
+
+.chart-donut-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-donut-value {
+  fill: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-donut-label {
+  fill: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: var(--tracking-label);
+  text-anchor: middle;
+  text-transform: uppercase;
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+
+.chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  border: 1px dashed var(--line);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  text-align: center;
+  padding: var(--s4);
+}
+
+/* ── Metric tile ────────────────────────────────────────────────────────── */
+
+.metric-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: var(--s4);
+  border: var(--hair) solid var(--line);
+  background: var(--surface);
+  min-width: 0;
+  text-align: left;
+}
+
+button.metric-tile { cursor: pointer; transition: border-color var(--dur-fast) var(--ease); }
+button.metric-tile:hover { border-color: var(--text-primary); }
+
+.mt-label { color: var(--text-muted); }
+
+.mt-value {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.mt-value.is-hero {
+  font-size: 44px;
+  color: var(--accent);
+}
+
+.mt-unit {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+.mt-foot {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mt-delta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-delta.is-good { color: var(--status-good); }
+.mt-delta.is-bad { color: var(--status-crit); }
+.mt-delta.is-flat { color: var(--text-muted); }
+
+.mt-delta-arrow { font-size: 10px; }
+
+.mt-delta-base,
+.mt-hint {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.mt-hint { margin-top: 2px; text-transform: none; letter-spacing: 0; line-height: 1.4; }
+
+.mt-spark { margin-top: var(--s2); }

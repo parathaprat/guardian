@@ -1,0 +1,339 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Header — the Calvis nav, adapted to an ops console.
+   Three-track grid so the tab bar sits on the true optical centre regardless
+   of how wide the left and right clusters grow.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.hdr {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--s4);
+  height: var(--header-h);
+  padding: 0 var(--s4) 0 var(--s5);
+  background: var(--surface);
+  border-bottom: var(--hair) solid var(--line);
+  user-select: none;
+}
+
+/* ── Left: wordmark ─────────────────────────────────────────────────────── */
+
+.hdr-left {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.hdr-word {
+  display: inline-flex;
+  align-items: flex-end;
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.hdr-word .dot-accent {
+  width: 7px;
+  height: 7px;
+  margin-left: 5px;
+  margin-bottom: 1px;
+}
+
+.hdr-rule {
+  flex: none;
+  width: var(--hair);
+  height: 22px;
+  background: var(--line);
+}
+
+.hdr-product {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.hdr-name { color: var(--text-primary); }
+.hdr-desc { font-size: 9px; }
+
+/* ── Centre: tabs ───────────────────────────────────────────────────────── */
+
+.hdr-tabs {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  gap: var(--s5);
+}
+
+.hdr-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 2px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease);
+}
+.hdr-tab:hover { color: var(--text-primary); }
+.hdr-tab[aria-current='page'] { color: var(--text-primary); }
+
+/* The single strongest active signal on the screen — 2px of brand orange. */
+.hdr-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--dur) var(--ease);
+}
+.hdr-tab[aria-current='page']::after { transform: scaleX(1); }
+
+/* Shortcut numerals stay invisible until the operator goes looking for them. */
+.hdr-tab-k {
+  font-size: 9px;
+  color: var(--ink-4);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.hdr-tabs:hover .hdr-tab-k,
+.hdr-tabs:focus-within .hdr-tab-k { opacity: 1; }
+
+.hdr-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 4px;
+  border: var(--hair) solid var(--line-strong);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.hdr-badge[data-hot='1'] {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+/* ── Right: clock, transport, engine, theme ─────────────────────────────── */
+
+.hdr-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.hdr-clock {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hdr-clock-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hdr-live {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  background: var(--text-muted);
+}
+.hdr-live[data-state='live'] {
+  background: var(--status-good);
+  animation: pulse-dot 1.6s var(--ease) infinite;
+}
+.hdr-live[data-state='lost'] { background: var(--status-crit); }
+
+.hdr-clock-v {
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.hdr-clock-d { color: var(--text-muted); }
+.hdr-clock-t { color: var(--text-primary); }
+
+.hdr-transport {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.hdr-play,
+.hdr-sq { width: 26px; padding: 0; }
+.hdr-sq { font-family: var(--font-mono); font-size: 11px; }
+
+.hdr-seg {
+  display: inline-flex;
+  align-items: stretch;
+  height: 26px;
+  border: var(--hair) solid var(--line-strong);
+}
+.hdr-seg-b {
+  min-width: 30px;
+  padding: 0 6px;
+  border-right: var(--hair) solid var(--line-strong);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--tracking-micro);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.hdr-seg-b:last-child { border-right: 0; }
+.hdr-seg-b:hover:not(:disabled) { background: var(--surface-sunken); color: var(--text-primary); }
+.hdr-seg-b[aria-pressed='true'] {
+  background: var(--surface-invert);
+  color: var(--text-invert);
+}
+.hdr-seg-b:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.hdr-seed {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hdr-seed-in {
+  width: 78px;
+  height: 15px;
+  padding: 0;
+  border: 0;
+  border-bottom: var(--hair) solid transparent;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.hdr-seed-in:hover:not(:disabled) { border-bottom-color: var(--line-strong); }
+.hdr-seed-in:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+/* ── Engine pill + hover readout ────────────────────────────────────────── */
+
+.hdr-engine { position: relative; }
+
+.hdr-engine-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border: var(--hair) solid var(--line-strong);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: default;
+}
+.hdr-engine-btn[data-engine='claude'] {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+.hdr-engine-warn {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  background: var(--status-warn);
+}
+
+.hdr-pop {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 60;
+  width: 248px;
+  padding: var(--s3) var(--s4) var(--s4);
+  background: var(--surface);
+  border: var(--hair) solid var(--line-strong);
+  box-shadow: var(--shadow-pop);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease),
+              visibility var(--dur-fast) var(--ease);
+}
+.hdr-engine:hover .hdr-pop,
+.hdr-engine:focus-within .hdr-pop {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+
+.hdr-pop-head {
+  color: var(--text-primary);
+  padding-bottom: var(--s2);
+}
+.hdr-pop-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: 3px 0;
+}
+.hdr-pop-v {
+  font-size: 11px;
+  color: var(--text-primary);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hdr-pop-v[data-warn='1'] { color: var(--status-crit); }
+.hdr-pop-sep {
+  height: var(--hair);
+  background: var(--line);
+  margin: var(--s2) 0;
+}
+.hdr-pop-note {
+  margin: var(--s3) 0 0;
+  padding-top: var(--s2);
+  border-top: var(--hair) solid var(--line);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--status-warn);
+}
+
+/* ── Narrow displays: shed the least load-bearing chrome first ──────────── */
+
+@media (max-width: 1440px) {
+  .hdr-desc { display: none; }
+  .hdr-tabs { gap: var(--s4); }
+}
+@media (max-width: 1280px) {
+  .hdr-seed { display: none; }
+  .hdr { padding-left: var(--s4); }
+}
+@media (max-width: 1120px) {
+  .hdr-clock-d { display: none; }
+  .hdr-right { gap: var(--s3); }
+}

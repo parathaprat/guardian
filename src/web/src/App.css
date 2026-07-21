@@ -1,0 +1,91 @@
+/* The shell: a fixed grid. The page never scrolls; panes do. */
+
+.app {
+  display: grid;
+  grid-template-rows: var(--header-h) auto 1fr;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+
+.app-body {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Connection banner sits between the header and the body so nothing shifts. */
+.app-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s5);
+  background: var(--status-crit-wash);
+  border-bottom: var(--hair) solid var(--line);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ── Boot state ─────────────────────────────────────────────────────────── */
+
+.app-boot {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s4);
+  text-align: center;
+  padding: var(--s6);
+}
+
+.app-boot-mark {
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  animation: pulse-dot 1.4s var(--ease) infinite;
+}
+
+.app-boot-copy {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.app-boot-copy code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  background: var(--paper-3);
+  color: var(--text-primary);
+}
+
+/* ── Help overlay ───────────────────────────────────────────────────────── */
+
+.help-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(13, 13, 13, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s5);
+  animation: slide-in var(--dur-fast) var(--ease);
+}
+
+.help-card {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border: var(--hair) solid var(--line);
+  box-shadow: var(--shadow-pop);
+}
+
+.help-tbl td { padding: var(--s2) var(--s3); }
+.help-tbl tr:last-child td { border-bottom: none; }
+.help-tbl td:first-child { width: 78px; }
