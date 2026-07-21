@@ -704,34 +704,57 @@ function OperatorBar({ incident, overriding, setOverriding }: {
 // ── Site map ────────────────────────────────────────────────────────────────
 
 /**
- * Site bounds tile the unit square, so the map has no aspect ratio of its own —
- * it takes the panel's. Rendering into a fixed viewBox letterboxed the plan into
- * a ribbon with dead space either side; deriving the viewBox height from the
- * measured width instead fills the strip exactly, and because the viewBox and
- * the viewport then share an aspect, nothing is distorted and label sizes hold.
+ * Site bounds tile the unit square, so the plan has no aspect ratio of its own —
+ * it takes the panel's. A fixed viewBox letterboxed it into a ribbon with dead
+ * space either side, so the viewBox height is derived from the measured box.
+ *
+ * That has a consequence worth naming, because getting it wrong is what made
+ * the labels collide: with the viewBox pinned at 100 units wide, one user unit
+ * is `panelWidth / 100` pixels — so anything sized in user units grows with the
+ * panel. On a 1800px window that scale is ~15px/unit; on a 2560px one it is
+ * ~21px, and every glyph inflates by 40%. So the hook returns the scale too,
+ * and every mark below is declared in *pixels* and converted. Strokes get
+ * `non-scaling-stroke`, which does the same job natively.
  */
-function useMapHeight(ref: RefObject<HTMLDivElement | null>): number {
-  const [h, setH] = useState(46);
+function useMapMetrics(ref: RefObject<HTMLDivElement | null>): { h: number; scale: number } {
+  const [m, setM] = useState({ h: 46, scale: 10 });
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
       if (width <= 0 || height <= 0) return;
-      setH(Math.max(22, Math.min(100, (height / width) * 100)));
+      const h = Math.max(6, Math.min(200, (height / width) * 100));
+      // Derive the scale from the viewBox actually used, exactly as `meet` does.
+      // Computing it as width/100 instead silently disagrees with the renderer
+      // the moment the clamp bites, and every mark comes out short by the ratio.
+      setM({ h, scale: Math.min(width / 100, height / h) });
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, [ref]);
-  return h;
+  return m;
 }
+
+/** Intended on-screen sizes, in CSS pixels. */
+const MAP_PX = {
+  siteLabel: 11,
+  zoneLabel: 9.5,
+  guardLabel: 7.5,
+  node: 14,
+  guard: 9.5,
+  pulse: 17,
+  labelGap: 9,
+} as const;
 
 function SiteMap() {
   const world = useWorld();
   const incidents = useIncidents();
   const [inject, setInject] = useState<string | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const H = useMapHeight(bodyRef);
+  const { h: H, scale } = useMapMetrics(bodyRef);
+  /** px → user units, so a mark keeps its size whatever the panel does. */
+  const u = (px: number) => px / scale;
 
   const hot = useMemo(() => {
     const m = new Map<string, Priority>();
@@ -763,6 +786,7 @@ function SiteMap() {
             x={s.bounds.x * 100} y={s.bounds.y * H}
             width={s.bounds.w * 100} height={s.bounds.h * H}
             className="map-site"
+            vectorEffect="non-scaling-stroke"
           />
         ))}
 
@@ -776,7 +800,14 @@ function SiteMap() {
             if (!a || a.siteId !== z.siteId || a.id < z.id) return null;
             const ax = (site.bounds.x + a.x * site.bounds.w) * 100;
             const ay = (site.bounds.y + a.y * site.bounds.h) * H;
-            return <line key={`${z.id}-${aid}`} x1={px} y1={py} x2={ax} y2={ay} className="map-link" />;
+            return (
+              <line
+                key={`${z.id}-${aid}`}
+                x1={px} y1={py} x2={ax} y2={ay}
+                className="map-link"
+                vectorEffect="non-scaling-stroke"
+              />
+            );
           });
         })}
 
@@ -789,9 +820,20 @@ function SiteMap() {
           return (
             <g key={z.id} className="map-zone" onClick={() => setInject(inject === z.id ? null : z.id)}>
               <title>{z.name} — click to raise a test alarm here</title>
-              {p && <circle cx={px} cy={py} r={3.1} className={`map-pulse is-${p}`} />}
-              <rect x={px - 1.5} y={py - 1.5} width={3} height={3} className={`map-node${p ? ` is-${p}` : ''}`} />
-              <text x={px} y={py + 4.4} className="map-zone-label">{z.code}</text>
+              {p && <circle cx={px} cy={py} r={u(MAP_PX.pulse) / 2} className={`map-pulse is-${p}`} vectorEffect="non-scaling-stroke" />}
+              <rect
+                x={px - u(MAP_PX.node) / 2} y={py - u(MAP_PX.node) / 2}
+                width={u(MAP_PX.node)} height={u(MAP_PX.node)}
+                className={`map-node${p ? ` is-${p}` : ''}`}
+              />
+              <text
+                x={px}
+                y={py + u(MAP_PX.node / 2 + MAP_PX.labelGap)}
+                fontSize={u(MAP_PX.zoneLabel)}
+                className="map-zone-label"
+              >
+                {z.code}
+              </text>
             </g>
           );
         })}
@@ -800,13 +842,24 @@ function SiteMap() {
           const z = world.zones.find((zz) => zz.id === g.currentZoneId);
           const site = z && world.sites.find((s) => s.id === z.siteId);
           if (!z || !site) return null;
-          const px = (site.bounds.x + z.x * site.bounds.w) * 100 + 2.2;
-          const py = (site.bounds.y + z.y * site.bounds.h) * H - 2.2;
+          const off = u(MAP_PX.node * 0.8);
+          const px = (site.bounds.x + z.x * site.bounds.w) * 100 + off;
+          const py = (site.bounds.y + z.y * site.bounds.h) * H - off;
           return (
             <g key={g.id}>
               <title>{g.name} — {g.status.replace(/_/g, ' ')}</title>
-              <circle cx={px} cy={py} r={1.7} className={`map-guard is-${g.status}`} />
-              <text x={px} y={py + 0.6} className="map-guard-label">{initials(g.name)}</text>
+              <circle
+                cx={px} cy={py} r={u(MAP_PX.guard)}
+                className={`map-guard is-${g.status}`}
+                vectorEffect="non-scaling-stroke"
+              />
+              <text
+                x={px} y={py + u(MAP_PX.guardLabel * 0.36)}
+                fontSize={u(MAP_PX.guardLabel)}
+                className="map-guard-label"
+              >
+                {initials(g.name)}
+              </text>
             </g>
           );
         })}
@@ -816,8 +869,9 @@ function SiteMap() {
         {world.sites.map((s) => (
           <text
             key={`${s.id}-label`}
-            x={s.bounds.x * 100 + 1.2}
-            y={s.bounds.y * H + 3}
+            x={s.bounds.x * 100 + u(8)}
+            y={s.bounds.y * H + u(MAP_PX.siteLabel + 6)}
+            fontSize={u(MAP_PX.siteLabel)}
             className="map-site-label"
           >
             {s.code}

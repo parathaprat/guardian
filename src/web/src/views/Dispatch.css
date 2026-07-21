@@ -153,7 +153,10 @@
 
 /* ── Detail ─────────────────────────────────────────────────────────────── */
 
-.detail-body { padding: 0; }
+/* A flex column so the action bar can take `margin-top: auto`: when an incident
+   is short it settles on the floor of the panel instead of floating mid-air
+   with dead space under it, and it still sticks once content overflows. */
+.detail-body { padding: 0; display: flex; flex-direction: column; }
 
 /* The lead: the decision, what it means, and the order given. */
 .det-lead { padding: var(--s5) var(--s5) var(--s4); border-bottom: var(--hair) solid var(--line); }
@@ -359,6 +362,8 @@
   position: sticky;
   bottom: 0;
   z-index: 5;
+  margin-top: auto;
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--s3);
@@ -399,24 +404,28 @@
 .map-body { padding: var(--s3); display: flex; position: relative; min-height: 0; }
 .map-svg { width: 100%; height: 100%; }
 
-.map-site { fill: none; stroke: var(--line); stroke-width: 0.25; }
+/* Geometry here is authored in *pixels* by the component and converted to user
+   units, because the viewBox height is adaptive and so one unit is not a fixed
+   number of pixels. Strokes use non-scaling-stroke, which is the native
+   equivalent — so no width or font-size below may be given in user units. */
+.map-site { fill: none; stroke: var(--line); stroke-width: 1; }
+.map-link { stroke: var(--line); stroke-width: 1; }
 
-/* Map labels sit wherever the plan puts them, so they carry a surface-coloured
-   halo rather than relying on luck not to land on a node. */
+/* Labels sit wherever the plan puts them, so they carry a surface-coloured halo
+   rather than relying on luck not to land on a node. */
 .map-site-label, .map-zone-label, .map-guard-label {
   paint-order: stroke;
   stroke: var(--surface);
-  stroke-width: 0.7px;
+  stroke-width: 3px;
   stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .map-site-label {
   fill: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 2px;
   letter-spacing: 0.16em;
 }
-.map-link { stroke: var(--line); stroke-width: 0.14; }
 .map-zone { cursor: pointer; }
 .map-node { fill: var(--ink-4); }
 .map-zone:hover .map-node { fill: var(--accent); }
@@ -425,7 +434,7 @@
 .map-node.is-P2 { fill: var(--p2); }
 .map-node.is-P3 { fill: var(--p3); }
 
-.map-pulse { fill: none; stroke-width: 0.3; animation: pulse-dot 1.6s var(--ease) infinite; }
+.map-pulse { fill: none; stroke-width: 1.5; animation: pulse-dot 1.6s var(--ease) infinite; }
 .map-pulse.is-P0 { stroke: var(--p0); }
 .map-pulse.is-P1 { stroke: var(--p1); }
 .map-pulse.is-P2 { stroke: var(--p2); }
@@ -434,15 +443,13 @@
 .map-zone-label {
   fill: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 1.5px;
   text-anchor: middle;
 }
-.map-guard { fill: var(--surface); stroke: var(--ink-3); stroke-width: 0.2; }
+.map-guard { fill: var(--surface); stroke: var(--ink-3); stroke-width: 1.5; }
 .map-guard.is-enroute, .map-guard.is-on_scene { stroke: var(--accent); }
 .map-guard-label {
   fill: var(--text-secondary);
   font-family: var(--font-mono);
-  font-size: 1.3px;
   text-anchor: middle;
 }
 

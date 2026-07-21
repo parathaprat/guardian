@@ -1,15 +1,26 @@
 /* The shell: a fixed grid. The page never scrolls; panes do. */
 
+/* Flex, not grid.
+   This was `grid-template-rows: var(--header-h) auto 1fr` — three rows for what
+   is usually two children, because the connection banner only mounts when the
+   stream drops. With no banner, <main> landed in the content-sized `auto` row
+   and the `1fr` row held open a dead band at the bottom of the viewport,
+   visible whenever the console was quiet enough for content to be short.
+   A column flex container has no fixed idea of how many children there are. */
 .app {
-  display: grid;
-  grid-template-rows: var(--header-h) auto 1fr;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
   background: var(--surface-sunken);
 }
 
+/* Header and banner size to content; the body takes the rest, whatever is left. */
+.app > * { flex: none; }
+
 .app-body {
+  flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
