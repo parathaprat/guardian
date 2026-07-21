@@ -48,14 +48,30 @@ its own sake. If the measured learning gain holds across two unrelated model
 families, the gain is coming from the Bayesian memory rather than from one
 vendor's quirks, which is the claim this whole repo exists to support.
 
-> **On Groq's free tier**, the per-minute token allowance is the binding
-> constraint: roughly one hosted decision a minute against a four-thousand-token
-> prompt. The provider tracks the real budget from Groq's own response headers
-> and declines locally when the next call cannot fit, so an incident falls back
-> to the Reasoner in a millisecond instead of stalling the queue for thirty
-> seconds and failing anyway. Run the simulation at 1x or 4x to keep the hosted
-> model in the loop; 64x will outrun any free tier. Each incident card names the
-> engine that actually decided it, so a fallback is never disguised.
+> **On Groq's free tier**, the token allowance is the binding constraint, and it
+> is worth knowing exactly how it binds. The window is 8,000 tokens per minute
+> and 200,000 per day, and Groq charges the *requested* completion budget, not
+> what the model produces. A decision costs about 5,900 tokens, so the practical
+> ceiling is roughly one decision a minute and about thirty a day.
+>
+> Three things follow, all of them in the code rather than in a caveat:
+>
+> - **One-shot evidence.** The fixed prompt is re-sent on every turn of an
+>   agentic loop, so a two-turn decision costs more than a whole minute's
+>   allowance and could never complete. Against a metered provider the loop
+>   inverts: the six evidence tools run locally, their results go into the
+>   prompt, their schemas come out of the request, and the model is asked once
+>   for the judgment. Same trace, roughly 60% of the tokens.
+> - **Budget-aware triage.** When the window is nearly spent, the remaining
+>   tokens go to life-safety and high-severity alarms. A robot-obstruction alert
+>   at 3am does not need a large language model; a person-down does.
+> - **Honest attribution.** Each incident records the engine that actually
+>   decided it, so a fallback is never disguised as a hosted decision.
+>
+> Run at 1x or 4x to keep the hosted model in the loop; 64x will outrun any free
+> tier. If you want it in the loop for every alarm, upgrade the Groq tier or set
+> `GROQ_MODEL=llama-3.3-70b-versatile`, which has a 50% larger window but exposes
+> no reasoning.
 
 ```bash
 npm run verify            # typecheck + the learning claim across 20 worlds

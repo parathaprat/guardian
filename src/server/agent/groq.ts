@@ -29,6 +29,11 @@
  * falls back to the Reasoner in a millisecond instead of stalling the queue for
  * thirty seconds and then failing anyway. Slower simulation speeds keep the
  * hosted model in the loop; 64x will outrun any free tier.
+ *
+ * That measurement is also why `loop.ts` runs one-shot against a metered
+ * provider: a two-turn agentic decision costs more than an entire minute's
+ * allowance, so it could never complete, and the tokens were being spent on
+ * calls that ended in a fallback regardless.
  */
 
 import type {
@@ -41,12 +46,20 @@ const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
 /**
  * Completion budgets, deliberately tight. Groq charges the *requested* budget
- * against the per-minute token meter, so an 8k default would spend the entire
- * free-tier allowance on headroom no dispatch decision has ever needed: the
- * terminal tool call is a few hundred tokens.
+ * against the per-minute token meter, not the tokens actually produced, so an
+ * 8k default would spend the entire free-tier allowance on headroom no dispatch
+ * decision has ever needed. A `submit_decision` payload with a three-sentence
+ * rationale plus reasoning measures well under a thousand tokens.
  */
-const CHAT_MAX_TOKENS = 2048;
+const CHAT_MAX_TOKENS = 1200;
 const JSON_MAX_TOKENS = 4096;
+
+/**
+ * What one complete decision costs: the system prompt, the incident, the
+ * pre-gathered evidence, the terminal tool schema and the completion budget.
+ * Used only to answer "is there enough left in this window to bother".
+ */
+const TYPICAL_CALL_TOKENS = 6_100;   // measured: ~4,850 prompt + the completion budget
 
 /** Longest a waiting caller will sit on a spent token window. One window plus slack. */
 const MAX_BUDGET_WAIT_MS = 70_000;
@@ -169,6 +182,13 @@ export class GroqProvider implements LlmProvider {
     this.effort = opts.effort;
   }
 
+  /** Not enough left in this window to finish a decision on this model. */
+  underPressure(): boolean {
+    const b = this.budget;
+    if (!b || Date.now() >= b.resetAt) return false;
+    return b.remaining < TYPICAL_CALL_TOKENS;
+  }
+
   session(system: string, user: string, tools: ToolDef[]): LlmSession {
     return new GroqSession(this, [
       { role: 'system', content: system },
@@ -276,8 +296,17 @@ export class GroqProvider implements LlmProvider {
           this.budget = null;
           continue;
         }
+        // Per-minute and per-day exhaustion need opposite responses from the
+        // operator, so the note has to say which one was hit. Slowing the world
+        // down does nothing for a spent daily allowance.
+        const daily = /per day|\bTPD\b|tokens per day/i.test(text);
         throw new GroqRateLimitError(
-          `Groq rate limit reached (${errorMessage(text)}). Budget refills in ${Math.ceil(wait / 1000)}s.`,
+          daily
+            ? `Groq daily token allowance is spent (${errorMessage(text)}). It resets in `
+              + `${Math.ceil(wait / 60_000)} min. Slowing the simulation will not help; this is a `
+              + 'per-day cap. Upgrade the Groq tier, or keep running on the Reasoner, which is fully functional.'
+            : `Groq per-minute rate limit reached (${errorMessage(text)}). It refills in `
+              + `${Math.ceil(wait / 1000)}s. Lower the simulation speed to keep the hosted model in the loop.`,
           wait,
         );
       }

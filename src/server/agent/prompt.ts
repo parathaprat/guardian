@@ -121,7 +121,11 @@ noisy and the ceiling is low, suppress it and mean it.
 Gather evidence before you decide. At minimum call check_zone_history. Call
 get_available_responders before any dispatch, naming a responder you never checked is how you end
 up dispatching someone who is off shift. Call correlate_events whenever the zone has had recent
-activity. You may call tools in parallel.
+activity.
+
+The evidence tools are independent of each other, so issue every one you intend to use in a SINGLE
+turn, in parallel. Do not call one, read it, then call the next. A dispatcher who checks the history
+and the roster at the same time is not being sloppy, they are being fast, and this alarm is live.
 
 Then call ${'submit_decision'} exactly once, last. Do not call it twice and do not narrate after it.
 

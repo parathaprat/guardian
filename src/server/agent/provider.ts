@@ -70,6 +70,15 @@ export interface LlmProvider {
   readonly engine: LlmEngineKind;
   readonly model: string;
   readonly effort: string;
+  /**
+   * True when the account is close enough to a rate limit that the next few
+   * calls are not all going to land. The loop uses this to spend what is left on
+   * the incidents that actually need judgment instead of on nuisance alarms the
+   * local policy already handles correctly.
+   *
+   * Optional: a provider with no metered window never reports pressure.
+   */
+  underPressure?(): boolean;
   /** Start a dispatch conversation. `tools` order is frozen for cache stability. */
   session(system: string, user: string, tools: ToolDef[]): LlmSession;
   /**

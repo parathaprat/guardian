@@ -205,14 +205,35 @@ control over the exact error text that reaches the trace inspector, which is the
 surface this product is about.
 
 **Rate limits are treated as a design constraint, not an error path.** Groq's
-free tier meters tokens per minute and charges the *requested* completion budget
-against that meter, so a four-thousand-token prompt buys roughly one decision a
-minute. The provider reads the real budget from Groq's own response headers and
-declines locally when the next call cannot fit, so an incident degrades to the
-Reasoner in a millisecond rather than stalling the queue for thirty seconds and
-failing anyway. Live decisions fail fast; the human-initiated reflection pass,
-which runs behind a spinner and has no equally good substitute, is allowed to
-wait out the window instead.
+free tier meters 8,000 tokens per minute and charges the *requested* completion
+budget against that meter, not what the model produces. I measured before
+reacting, and the measurement changed the architecture rather than a config
+value.
+
+A decision under the agentic loop cost two turns at roughly 5,400 tokens each,
+because the fixed prompt is re-sent every turn. That is more than a whole
+minute's allowance, so a decision **could never complete**, and the tokens were
+spent anyway on a call that ended in a fallback. The first version of this
+integration got 0 of 6 decisions onto the hosted model and burned real tokens
+doing it.
+
+So against a metered provider the loop inverts. The six evidence tools are
+deterministic, local and free, so they run here; their results go into the
+prompt, their schemas come *out* of the request, and the model is asked once for
+the only thing it uniquely provides, which is the judgment. One call, about 5,900
+tokens, fits in one window. That took it to 3 of 6, and to nearly all of them at
+1x. What is lost is real and I would rather name it than bury it: the agent no
+longer chooses its own evidence. What the operator sees is unchanged, since the
+trace still shows every tool call, every result, the reasoning and the decision.
+
+Two smaller pieces around it. The provider reads the real budget from Groq's own
+response headers and declines locally when the next call cannot fit, so an
+incident degrades to the Reasoner in a millisecond rather than stalling the queue
+for thirty seconds and failing anyway. And when the window is nearly spent, the
+remainder is reserved for life-safety and high-severity alarms, keyed off the
+prior cost of being wrong rather than off the model's own confidence, which would
+be circular. Live decisions fail fast; the human-initiated reflection pass, which
+has no equally good substitute, waits out the window instead.
 
 And the honesty rule that falls out of it: an incident records **the engine that
 actually decided it**, not the one that was configured. A hosted call that was

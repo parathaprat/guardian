@@ -23,11 +23,67 @@ import type { EvidenceRef, TraceStep } from '../../shared/types';
 import { ENGINE_LABELS } from '../../shared/types';
 import type { AgentContext, AgentResult, DispatchAgent } from '../contracts';
 import type { LlmProvider, LlmToolResult } from './provider';
-import { SUBMIT_TOOL_NAME, TOOL_DEFS, decisionFromSubmit, runTool } from './tools';
+import {
+  SUBMIT_TOOL_NAME, TOOL_DEFS, TOOL_NAMES, TYPE_PROFILE, decisionFromSubmit, isLifeSafety, runTool,
+} from './tools';
 import { buildIncidentPrompt, buildSystemPrompt } from './prompt';
 import { ReasonerAgent } from './reasoner';
 
 const MAX_TURNS = 6;
+
+/**
+ * Is this alarm worth a scarce model call?
+ *
+ * Only consulted when the provider says its rate-limit window is nearly spent.
+ * The rule is the same one a shift supervisor uses when short-handed: spend
+ * judgment where being wrong is expensive, and let standing policy handle the
+ * rest. A robot-obstruction alert at 3am does not need a large language model;
+ * a person-down does.
+ *
+ * Note what this is *not*: it is not a confidence threshold on the model's own
+ * output, which would be circular. It keys off the prior cost of being wrong,
+ * which is known before any call is made.
+ */
+function worthTheBudget(type: Parameters<typeof isLifeSafety>[0]): boolean {
+  return isLifeSafety(type) || TYPE_PROFILE[type].severity >= 4;
+}
+
+/**
+ * One-shot mode: run the evidence tools here, ask the model once.
+ *
+ * The agentic loop is the better design when tokens are cheap: letting the agent
+ * choose what to check is real behaviour, and the trace of it is worth watching.
+ * It is the wrong design against a hard per-minute token budget, because the
+ * fixed prompt is re-sent on every turn. On Groq's free tier a two-turn decision
+ * costs more than an entire minute's allowance, so it can never complete, and
+ * the tokens are spent anyway on a call that ends in a fallback.
+ *
+ * So under a metered window the loop inverts: all six evidence tools run locally
+ * (they are deterministic and free), their results go into the prompt, the six
+ * tool schemas come *out* of the request, and the model is asked for the one
+ * thing only it can give, which is the judgment. That is a single call at around
+ * 60% of the tokens, and it fits inside one window.
+ *
+ * What is lost is real and worth naming: the agent no longer chooses its own
+ * evidence. What is kept is everything the operator sees, since the trace still
+ * shows every tool call, every result, the model's reasoning and its decision.
+ */
+const PREFETCH_ORDER = [
+  TOOL_NAMES.zoneHistory,
+  TOOL_NAMES.zoneContext,
+  TOOL_NAMES.correlate,
+  TOOL_NAMES.playbook,
+  TOOL_NAMES.precedent,
+  TOOL_NAMES.responders,
+] as const;
+
+/** `auto` picks one-shot for metered providers and the agentic loop otherwise. */
+function oneShotWanted(provider: LlmProvider): boolean {
+  const mode = process.env.SENTRY_EVIDENCE?.trim().toLowerCase() ?? 'auto';
+  if (mode === 'oneshot' || mode === 'one-shot' || mode === 'prefetch') return true;
+  if (mode === 'agentic' || mode === 'loop') return false;
+  return typeof provider.underPressure === 'function';
+}
 
 let stepSeq = 0;
 
@@ -81,7 +137,24 @@ export class LlmAgent implements DispatchAgent {
       ctx.onTraceStep?.(s);
     };
 
-    const session = this.opts.provider.session(
+    // Rate-limit triage. Failing the call and then falling back wastes both the
+    // tokens and the wall-clock; deciding not to spend them is strictly better.
+    const provider = this.opts.provider;
+    if (provider.underPressure?.() && !worthTheBudget(ctx.event.type)) {
+      emit(mkStep('error', `${ENGINE_LABELS[this.engine]} budget is nearly spent, holding it for higher-stakes alarms`, t0, {
+        detail:
+          `This is a ${ctx.event.type.replace(/_/g, ' ')} alarm, which the local Reasoner handles on an `
+          + 'explicit expected-cost policy. The remaining hosted-model budget in this window is reserved '
+          + 'for life-safety and high-severity alarms, where being wrong is expensive.',
+      }));
+      return this.viaFallback(ctx, trace, t0);
+    }
+
+    if (oneShotWanted(provider)) {
+      return this.oneShot(ctx, emit, trace, evidence, t0);
+    }
+
+    const session = provider.session(
       buildSystemPrompt(ctx.world),
       buildIncidentPrompt(ctx),
       TOOL_DEFS,
@@ -136,6 +209,74 @@ export class LlmAgent implements DispatchAgent {
         detail: `The model used all ${MAX_TURNS} turns without calling ${SUBMIT_TOOL_NAME}.`,
       }));
       return this.viaFallback(ctx, trace, t0);
+    } catch (err) {
+      this.opts.onFailure(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      emit(mkStep('error', `${ENGINE_LABELS[this.engine]} call failed, falling back to the local Reasoner`, t0, { detail: msg }));
+      return this.viaFallback(ctx, trace, t0);
+    }
+  }
+
+  /**
+   * Evidence first, locally and for free, then exactly one model call for the
+   * judgment. See the note on `PREFETCH_ORDER` for why this exists.
+   */
+  private async oneShot(
+    ctx: AgentContext,
+    emit: (s: TraceStep) => void,
+    trace: TraceStep[],
+    evidence: EvidenceRef[],
+    t0: number,
+  ): Promise<AgentResult> {
+    const readings: string[] = [];
+
+    for (const name of PREFETCH_ORDER) {
+      const s0 = Date.now();
+      emit(mkStep('tool_call', name, s0, { toolName: name }));
+      try {
+        const out = await runTool(name, {}, ctx);
+        evidence.push(...out.evidence);
+        emit(mkStep('tool_result', out.label, s0, { toolName: name, toolResult: out.result }));
+        readings.push(`## ${name}\n${JSON.stringify(out.result)}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        emit(mkStep('error', `${name} failed`, s0, { toolName: name, detail: msg }));
+      }
+    }
+
+    // Only the terminal tool is offered: the evidence tools have already run, and
+    // their schemas are about 1,400 tokens we no longer have to send.
+    const submitOnly = TOOL_DEFS.filter((t) => t.name === SUBMIT_TOOL_NAME);
+
+    const prompt = `${buildIncidentPrompt(ctx)}
+
+═══ EVIDENCE ALREADY GATHERED ═══
+
+Every evidence tool has been run for you and the raw results are below. Do not ask for more; this
+is everything available. Read it, weigh it, and call ${SUBMIT_TOOL_NAME} exactly once. That is the
+only tool you have.
+
+${readings.join('\n\n')}`;
+
+    try {
+      const session = this.opts.provider.session(buildSystemPrompt(ctx.world), prompt, submitOnly);
+      const callStart = Date.now();
+      const res = await session.next();
+
+      if (res.refused) throw new Error('Model declined the request.');
+
+      for (const block of res.reasoning) {
+        if (block.trim()) emit(mkStep('thinking', summarise(block), callStart, { detail: block }));
+      }
+
+      const submit = res.toolCalls.find((c) => c.name === SUBMIT_TOOL_NAME);
+      if (!submit) throw new Error(`Model returned no ${SUBMIT_TOOL_NAME} call.`);
+
+      const decision = decisionFromSubmit(submit.input, ctx, evidence);
+      emit(mkStep('decision', `${decision.action.toUpperCase()} · ${decision.priority}`, callStart, {
+        detail: decision.rationale,
+      }));
+      return { decision, trace, latencyMs: Date.now() - t0, engine: this.engine };
     } catch (err) {
       this.opts.onFailure(err);
       const msg = err instanceof Error ? err.message : String(err);
