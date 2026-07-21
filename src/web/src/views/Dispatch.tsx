@@ -18,7 +18,7 @@ import type {
   AgentActionKind, EvidenceRef, Incident, Priority, SecurityEvent, TraceStep,
   WorldSnapshot,
 } from '../../../shared/types';
-import { ACTION_LABELS, EVENT_LABELS, PRIORITY_ORDER } from '../../../shared/types';
+import { ACTION_LABELS, ENGINE_LABELS, EVENT_LABELS, PRIORITY_ORDER } from '../../../shared/types';
 import {
   ConfidenceBar, EmptyState, Kbd, Label, OutcomeBadge, Panel, Pill, PriorityChip,
   SegmentedControl, StatusDot,
@@ -319,8 +319,11 @@ function IncidentDetail({ incident, overrideNonce }: { incident: Incident | null
       eyebrow="The call"
       title={incidentHeadline(incident, zone?.name)}
       actions={
-        <Pill title={incident.engine === 'claude' ? 'Judged by Claude' : 'Judged by the local Reasoner engine'}>
-          {incident.engine === 'claude' ? 'Claude' : 'Reasoner'}
+        <Pill title={incident.engine === 'reasoner'
+          ? 'Judged by the local Reasoner engine'
+          : `Judged by ${ENGINE_LABELS[incident.engine]}`}
+        >
+          {ENGINE_LABELS[incident.engine]}
         </Pill>
       }
       bodyClassName="detail-body"

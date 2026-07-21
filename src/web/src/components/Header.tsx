@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { EngineStatus, Incident, SimControls, Snapshot } from '../../../shared/types';
+import { ENGINE_LABELS } from '../../../shared/types';
 import './Header.css';
 
 // ─── Routing vocabulary. The header renders the tab bar, so it owns the table. ──
@@ -247,11 +248,12 @@ function SeedField({ seed, onCommit }: { seed: number | null; onCommit: (seed: n
 // ─── Engine ───────────────────────────────────────────────────────────────────
 
 function EnginePill({ engine }: { engine: EngineStatus | null }) {
-  const isClaude = engine?.engine === 'claude';
+  const kind = engine?.engine ?? 'reasoner';
+  const hosted = engine !== null && kind !== 'reasoner';
   const text = engine === null
     ? 'Engine ·,'
-    : isClaude
-      ? `Claude · ${prettyModel(engine.model)}`
+    : hosted
+      ? `${ENGINE_LABELS[kind]} · ${prettyModel(engine.model)}`
       : 'Reasoner · Local';
 
   return (
@@ -259,7 +261,7 @@ function EnginePill({ engine }: { engine: EngineStatus | null }) {
       <button
         type="button"
         className="hdr-engine-btn"
-        data-engine={isClaude ? 'claude' : 'reasoner'}
+        data-engine={kind}
         aria-label={`Decision engine: ${text}`}
       >
         {engine?.note && <span className="hdr-engine-warn" aria-hidden="true" />}
@@ -296,9 +298,15 @@ function num(v: number | undefined): string {
   return v === undefined ? '-' : FMT.format(v);
 }
 
-/** `claude-opus-4-8[1m]` → `Opus 4.8`. Falls back to the raw id, uppercased. */
+/**
+ * `claude-opus-4-8[1m]` → `Opus 4.8`, `openai/gpt-oss-120b` → `gpt oss 120b`.
+ * Falls back to the raw id with separators softened.
+ */
 function prettyModel(id: string): string {
-  const base = id.replace(/^claude-/, '').replace(/-(latest|\d{8})$/, '');
+  const base = id
+    .replace(/^[^/]+\//, '')                 // vendor namespace, e.g. `openai/`
+    .replace(/^claude-/, '')
+    .replace(/-(latest|\d{8})$/, '');
   const m = /^(opus|sonnet|haiku)-(\d+)-(\d+)/i.exec(base);
   if (m) return `${m[1][0].toUpperCase()}${m[1].slice(1).toLowerCase()} ${m[2]}.${m[3]}`;
   return base.replace(/[-_]/g, ' ');

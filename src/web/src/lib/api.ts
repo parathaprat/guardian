@@ -119,10 +119,10 @@ export const api = {
   setRuleStatus: (ruleId: string, status: RuleStatus): Promise<Ok> =>
     post<Ok>(`/playbook/rules/${enc(ruleId)}/status`, { status }),
 
-  runEval: (opts: { eventCount: number; useClaude: boolean }): Promise<EvalRun> =>
+  runEval: (opts: { eventCount: number; useLlm: boolean }): Promise<EvalRun> =>
     post<EvalRun>('/evals/run', opts),
 
-  runExperiment: (opts: { eventCount: number; seedCount: number; useClaude: boolean }): Promise<Experiment> =>
+  runExperiment: (opts: { eventCount: number; seedCount: number; useLlm: boolean }): Promise<Experiment> =>
     post<Experiment>('/evals/experiment', opts),
 
   resetMemory: (): Promise<Ok> => post<Ok>('/memory/reset'),

@@ -1,5 +1,5 @@
 /**
- * npm run eval -- --seed 42 --events 400 [--claude] [--assert]
+ * npm run eval -- --seed 42 --events 400 [--llm] [--assert]
  * npm run eval -- --seeds 20 --events 400 [--assert]
  *
  * Runs the A/B replay outside the console so the result can be checked in CI or
@@ -50,18 +50,18 @@ function pad(s: string, n: number): string {
 }
 
 /** Multi-world mode: the claim with error bars on it. */
-async function runExperimentMode(baseSeed: number, events: number, useClaude: boolean): Promise<void> {
+async function runExperimentMode(baseSeed: number, events: number, useLlm: boolean): Promise<void> {
   const seedCount = arg('seeds', 20);
 
   console.log(`\n${B}SENTRY${R} ${ORANGE}■${R}  multi-world learning experiment`);
   console.log('─'.repeat(76));
-  console.log(`${DIM}base seed ${baseSeed} · ${seedCount} worlds · ${events} events each · judgment: ${useClaude ? 'Claude' : 'Reasoner (deterministic)'}${R}\n`);
+  console.log(`${DIM}base seed ${baseSeed} · ${seedCount} worlds · ${events} events each · judgment: ${useLlm ? 'hosted model' : 'Reasoner (deterministic)'}${R}\n`);
 
   const exp = await runExperiment({
     baseSeed,
     seedCount,
     eventCount: events,
-    useClaude,
+    useLlm,
     onProgress: (done, total, latest) => {
       const bar = `${'█'.repeat(done)}${'·'.repeat(Math.max(0, total - done))}`;
       const sign = latest.liftPoints >= 0 ? '+' : '';
@@ -128,19 +128,20 @@ function printExperiment(exp: Experiment): void {
 async function main(): Promise<void> {
   const seed = arg('seed', Number(process.env.SENTRY_SEED ?? 20260721));
   const events = arg('events', 400);
-  const useClaude = process.argv.includes('--claude');
+  // `--claude` kept as an alias so older notes and scripts keep working.
+  const useLlm = process.argv.includes('--llm') || process.argv.includes('--claude');
 
   if (process.argv.includes('--seeds')) {
-    await runExperimentMode(seed, events, useClaude);
+    await runExperimentMode(seed, events, useLlm);
     return;
   }
 
   console.log(`\n${B}SENTRY${R} ${ORANGE}■${R}  A/B replay evaluation`);
   console.log('─'.repeat(76));
-  console.log(`${DIM}seed ${seed} · ${events} events · judgment: ${useClaude ? 'Claude' : 'Reasoner (deterministic)'}${R}\n`);
+  console.log(`${DIM}seed ${seed} · ${events} events · judgment: ${useLlm ? 'hosted model' : 'Reasoner (deterministic)'}${R}\n`);
 
   const t0 = Date.now();
-  const run = await runEval({ seed, eventCount: events, useClaude });
+  const run = await runEval({ seed, eventCount: events, useLlm });
   const by = (id: string): EvalArm | undefined => run.arms.find((a) => a.id === id);
 
   const cols = ['static', 'cold', 'learned'];

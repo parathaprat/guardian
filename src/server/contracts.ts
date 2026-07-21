@@ -8,7 +8,7 @@
  */
 
 import type {
-  AgentDecision, CalibrationCell, CalibrationLookup, CorrelationFinding, EventType,
+  AgentDecision, CalibrationCell, CalibrationLookup, CorrelationFinding, EngineKind, EventType,
   Guard, Incident, LearningPoint, Metrics, PlaybookProposal, PlaybookRule, Precedent,
   Responder, ResponderCandidate, ResponderModel, Robot, SecurityEvent, SeededEvent,
   Severity, SimTime, Site, Skill, TraceStep, Zone, ResolutionOutcome, EventTruth,
@@ -145,9 +145,23 @@ export interface AgentContext {
   onTraceStep?: (step: TraceStep) => void;
 }
 
+export interface AgentResult {
+  decision: AgentDecision;
+  trace: TraceStep[];
+  latencyMs: number;
+  /**
+   * The engine that actually produced this decision, which is not always the
+   * engine that was asked. A hosted call that is rate-limited or that fails
+   * degrades to the local Reasoner, and the incident must say so rather than
+   * wear a vendor badge it did not earn.
+   */
+  engine: EngineKind;
+}
+
 export interface DispatchAgent {
-  readonly engine: 'claude' | 'reasoner';
-  decide(ctx: AgentContext): Promise<{ decision: AgentDecision; trace: TraceStep[]; latencyMs: number }>;
+  /** The engine this agent was configured with. */
+  readonly engine: EngineKind;
+  decide(ctx: AgentContext): Promise<AgentResult>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

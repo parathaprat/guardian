@@ -6,7 +6,7 @@
  * is present. It runs the *same* evidence tools as the Claude agent, in a fixed
  * order, then applies an explicit expected-cost policy.
  *
- * Because it and ClaudeAgent share evidence assembly, an A/B run that holds the
+ * Because it and the hosted engines share evidence assembly, an A/B run that holds the
  * engine constant and varies only memory isolates the learning contribution.
  */
 
@@ -14,7 +14,7 @@ import type {
   AgentActionKind, AgentDecision, EvidenceRef, Priority, Severity, TraceStep,
 } from '../../shared/types';
 import { priorityFromSeverity } from '../../shared/types';
-import type { AgentContext, DispatchAgent } from '../contracts';
+import type { AgentContext, AgentResult, DispatchAgent } from '../contracts';
 import {
   TOOL_NAMES, TYPE_PROFILE, isLifeSafety, requiredSkillFor, runTool, asSeverity, clamp, round,
   type CorrelationResult, type PlaybookResult, type PrecedentResult, type ResponderResult,
@@ -55,7 +55,7 @@ function step(
 export class ReasonerAgent implements DispatchAgent {
   readonly engine = 'reasoner' as const;
 
-  async decide(ctx: AgentContext): Promise<{ decision: AgentDecision; trace: TraceStep[]; latencyMs: number }> {
+  async decide(ctx: AgentContext): Promise<AgentResult> {
     const t0 = Date.now();
     const trace: TraceStep[] = [];
     const evidence: EvidenceRef[] = [];
@@ -226,7 +226,7 @@ export class ReasonerAgent implements DispatchAgent {
     };
 
     emit(step('decision', `${action.toUpperCase()} · ${priority}`, t0, { detail: decision.rationale }));
-    return { decision, trace, latencyMs: Date.now() - t0 };
+    return { decision, trace, latencyMs: Date.now() - t0, engine: 'reasoner' };
   }
 
   private instruction(action: AgentActionKind, ctx: AgentContext, responder: string): string {

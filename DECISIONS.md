@@ -176,8 +176,48 @@ jumping on every update. It is deliberately not a general graph library: pinning
 the three sites is what keeps the picture stable enough to read as learning
 rather than as churn.
 
+Past a few dozen edges any force-directed graph is a hairball, so it is built to
+be interrogated rather than admired: hovering or tabbing to a node isolates that
+neighbourhood and writes out, in a sentence, what the agent believes about that
+place or that alarm type. The picture is the way in; the sentence is the answer.
+
 I would rather it look sparse and honest than dense and decorative. Reset the
 memory and it goes back to nothing, which is the point.
+
+### One more channel added later: a second model vendor
+
+The judgment layer now runs on **either Groq or Claude**, selected by whichever
+key is in `.env`. What matters is where the seam was cut. The tools, the prompt,
+the agentic loop and the `TraceStep` format are shared and vendor-free; each
+provider implements only a session that can take a turn and hand back reasoning
+plus tool calls.
+
+That is not abstraction for its own sake. The entire repo exists to argue that
+the measured gain comes from the Bayesian memory rather than from a model having
+a good day. Being able to swap the model family and re-run the same experiment is
+the cheapest available test of that argument, and it costs one interface.
+
+Two implementation choices worth defending:
+
+**No SDK for Groq.** One documented JSON request, one documented JSON response.
+A dependency would have bought retries, which are twenty lines here, and cost
+control over the exact error text that reaches the trace inspector, which is the
+surface this product is about.
+
+**Rate limits are treated as a design constraint, not an error path.** Groq's
+free tier meters tokens per minute and charges the *requested* completion budget
+against that meter, so a four-thousand-token prompt buys roughly one decision a
+minute. The provider reads the real budget from Groq's own response headers and
+declines locally when the next call cannot fit, so an incident degrades to the
+Reasoner in a millisecond rather than stalling the queue for thirty seconds and
+failing anyway. Live decisions fail fast; the human-initiated reflection pass,
+which runs behind a spinner and has no equally good substitute, is allowed to
+wait out the window instead.
+
+And the honesty rule that falls out of it: an incident records **the engine that
+actually decided it**, not the one that was configured. A hosted call that was
+rate-limited and fell back to the Reasoner says Reasoner on the card. A vendor
+badge a decision did not earn would corrupt every claim on the Evals screen.
 
 ## Decision 5: Treat the UI as the product
 
@@ -204,7 +244,8 @@ rather show the working than assert good taste.
 
 One `npm install`, no database, no Docker, no external services, no native modules.
 Event-sourced JSONL, a ~120-line store on `useSyncExternalStore`, hand-rolled SVG
-charts. The entire dependency list is the Anthropic SDK, Express, React, and Vite.
+charts. The entire dependency list is the Anthropic SDK, Express, React, and Vite;
+the Groq provider is plain `fetch`.
 
 Reviewers who cannot run something do not evaluate it. That is worth more than any
 architectural elegance I could have bought with a heavier stack.

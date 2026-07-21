@@ -11,7 +11,7 @@
 
 import { useMemo, useState } from 'react';
 import type { CalibrationCell, EventType, PlaybookProposal, PlaybookRule } from '../../../shared/types';
-import { ACTION_LABELS, ALL_EVENT_TYPES, EVENT_LABELS } from '../../../shared/types';
+import { ACTION_LABELS, ALL_EVENT_TYPES, ENGINE_LABELS, EVENT_LABELS } from '../../../shared/types';
 import { Heatmap, type HeatCell } from '../components/charts';
 import { KnowledgeGraph } from '../components/KnowledgeGraph';
 import {
@@ -355,7 +355,7 @@ function ProposalDiff({ proposal, rules }: { proposal: PlaybookProposal; rules: 
       <header className="diff-head">
         <div className="row gap3">
           <Label tone="accent">Proposal {proposal.id}</Label>
-          <Pill>{proposal.engine === 'claude' ? 'Claude' : 'Statistical'}</Pill>
+          <Pill>{proposal.engine === 'reasoner' ? 'Statistical' : ENGINE_LABELS[proposal.engine]}</Pill>
           <span className="muted mono">{proposal.incidentsAnalysed} incidents analysed</span>
         </div>
       </header>

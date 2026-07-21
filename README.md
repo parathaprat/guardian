@@ -24,16 +24,38 @@ Open **http://localhost:5173**.
 That's it. No database, no Docker, no external services.
 
 > ### It runs with no API key.
-> Without `ANTHROPIC_API_KEY`, SENTRY runs its **Reasoner** engine, a real
-> expected-cost decision policy, not a stub. Every feature works: the agent
-> decides, the memory learns, the playbook updates, the evals run.
+> With no key set, SENTRY runs its **Reasoner** engine, a real expected-cost
+> decision policy, not a stub. Every feature works: the agent decides, the memory
+> learns, the playbook updates, the evals run.
 >
-> Paste a key into `.env` and the judgment layer upgrades to **Claude Opus 4.8**
-> with adaptive thinking, and the reflection agent starts authoring playbook rules
-> in prose. The header pill tells you which engine is live.
+> Paste a key into `.env` and the judgment layer upgrades to a hosted model, and
+> the reflection agent starts authoring playbook rules in prose. The header pill
+> tells you which engine is live.
 >
 > I made this choice deliberately: a reviewer who can't get a key still has to be
 > able to evaluate the work.
+
+### Two providers, one seam
+
+Set either key. `GROQ_API_KEY` runs the judgment layer on Groq (default
+`openai/gpt-oss-120b`), `ANTHROPIC_API_KEY` runs it on Claude Opus 4.8 with
+adaptive thinking. `SENTRY_PROVIDER` forces one when both are present.
+
+They are genuinely interchangeable: the tools, the prompt, the agentic loop and
+the trace format live in [`loop.ts`](src/server/agent/loop.ts) and are shared,
+and each vendor supplies only a `LlmProvider`. That is not framework-building for
+its own sake. If the measured learning gain holds across two unrelated model
+families, the gain is coming from the Bayesian memory rather than from one
+vendor's quirks, which is the claim this whole repo exists to support.
+
+> **On Groq's free tier**, the per-minute token allowance is the binding
+> constraint: roughly one hosted decision a minute against a four-thousand-token
+> prompt. The provider tracks the real budget from Groq's own response headers
+> and declines locally when the next call cannot fit, so an incident falls back
+> to the Reasoner in a millisecond instead of stalling the queue for thirty
+> seconds and failing anyway. Run the simulation at 1x or 4x to keep the hosted
+> model in the loop; 64x will outrun any free tier. Each incident card names the
+> engine that actually decided it, so a fallback is never disguised.
 
 ```bash
 npm run verify            # typecheck + the learning claim across 20 worlds
@@ -117,8 +139,11 @@ every connection between a place and an alarm type was earned from an outcome it
 watched resolve, so it starts nearly empty and fills in as you watch. Edge colour
 is the learned P(real), edge weight is how many outcomes are behind it, and
 dashed edges are knowledge borrowed from site-wide history where a zone has none
-yet, which is the cold-start story made visible. Below it: the calibration
-heatmap and the playbook. Hit **RUN REFLECTION NOW** to make the agent draft
+yet, which is the cold-start story made visible. Past a few dozen edges any
+force-directed graph is a hairball, so this one is built to be interrogated:
+hover or tab to any node and it isolates that neighbourhood and writes out, in a
+sentence, what the agent believes about that place or that alarm type. Click to
+pin it. Below it: the calibration heatmap and the playbook. Hit **RUN REFLECTION NOW** to make the agent draft
 policy changes, then approve them as a diff. **RESET MEMORY** wipes all four
 channels so you can watch the graph rebuild itself from nothing.
 
@@ -161,7 +186,8 @@ WORLD SIMULATOR (hidden ground truth)
       ▼
 EVIDENCE ASSEMBLY  6 tools over 4 memory channels → EvidenceRef[]
       ▼
-JUDGMENT           Claude Opus 4.8  ──or──  deterministic Reasoner
+JUDGMENT           Groq or Claude, behind one provider seam
+                   ──or── deterministic Reasoner, no key required
       ▼
 ACTION             dispatch · escalate · monitor · suppress
       ▼

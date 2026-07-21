@@ -11,13 +11,13 @@
  * approved it, is one a director of security can actually adopt.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import type {
-  CalibrationCell, EventType, Incident, PlaybookProposal, PlaybookRule, Priority,
-  RuleTrigger, SimTime,
+  CalibrationCell, EngineKind, EventType, Incident, PlaybookProposal, PlaybookRule,
+  Priority, RuleTrigger, SimTime,
 } from '../../shared/types';
 import { EVENT_LABELS } from '../../shared/types';
 import type { Memory, WorldState } from '../contracts';
+import { activeProvider } from './index';
 
 const MIN_OBS_FOR_RULE = 6;
 const NUISANCE_CEILING = 0.2;
@@ -29,7 +29,7 @@ export interface ReflectionArgs {
   memory: Memory;
   world: WorldState;
   now: SimTime;
-  agentEngine: 'claude' | 'reasoner';
+  agentEngine: EngineKind;
 }
 
 let proposalSeq = 0;
@@ -303,35 +303,21 @@ const REFLECT_SYSTEM =
   '- Propose nothing if the evidence is not there. "No change" is a valid, and often correct, output.';
 
 export async function runReflection(args: ReflectionArgs): Promise<PlaybookProposal> {
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
+  const provider = activeProvider();
   const resolved = args.incidents.filter((i) => i.outcome !== null);
 
-  if (!apiKey || args.agentEngine !== 'claude') {
+  if (!provider || args.agentEngine === 'reasoner') {
     return statisticalProposal(args);
   }
 
   try {
-    const client = new Anthropic({ apiKey, maxRetries: 1 });
-    const res = await client.messages.create({
-      model: process.env.SENTRY_MODEL ?? 'claude-opus-4-8',
-      max_tokens: 8000,
-      thinking: { type: 'adaptive', display: 'summarized' },
-      output_config: {
-        effort: 'high',
-        format: { type: 'json_schema', schema: PROPOSAL_SCHEMA },
-      },
-      system: REFLECT_SYSTEM,
-      messages: [{
-        role: 'user',
-        content:
-          `Here is everything the dispatch system has learned since the last review.\n\n` +
-          `${buildDigest(args)}\n\n` +
-          `Draft playbook changes. Return JSON matching the schema.`,
-      }],
-    });
-
-    const text = res.content.find((b): b is Anthropic.TextBlock => b.type === 'text')?.text ?? '';
-    const parsed = JSON.parse(text) as {
+    const parsed = (await provider.json(
+      REFLECT_SYSTEM,
+      `Here is everything the dispatch system has learned since the last review.\n\n` +
+      `${buildDigest(args)}\n\n` +
+      `Draft playbook changes. Return JSON matching the schema.`,
+      PROPOSAL_SCHEMA,
+    )) as {
       summary: string;
       rules: Array<Record<string, unknown>>;
       retire: Array<{ rule_id: string; reason: string }>;
@@ -376,12 +362,20 @@ export async function runReflection(args: ReflectionArgs): Promise<PlaybookPropo
         .map((r) => ({ ruleId: r.rule_id, reason: r.reason })),
       summary: parsed.summary ?? '',
       incidentsAnalysed: resolved.length,
-      engine: 'claude',
+      engine: provider.engine,
       status: 'pending',
     };
-  } catch {
-    // A failed reflection must never take the console down, fall back silently
-    // to the statistical pass, which is a genuine second opinion, not a stub.
-    return statisticalProposal(args);
+  } catch (err) {
+    // A failed reflection must never take the console down. The statistical
+    // pass is a genuine second opinion rather than a stub, so it stands in, but
+    // it says so: a proposal that quietly changed author is a proposal the
+    // approver cannot judge.
+    const fallback = statisticalProposal(args);
+    const why = err instanceof Error ? err.message : String(err);
+    return {
+      ...fallback,
+      summary: `${fallback.summary} (The ${provider.engine === 'claude' ? 'Claude' : 'Groq'} reflection pass was `
+        + `unavailable, so this is the statistical pass instead: ${why})`,
+    };
   }
 }

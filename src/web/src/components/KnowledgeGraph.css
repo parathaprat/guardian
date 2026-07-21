@@ -88,6 +88,18 @@
   .kg-node { transition: none; }
 }
 
+/* Focus: isolate a node's neighbourhood so a 60-edge graph stays answerable. */
+.kg-hit { fill: transparent; }
+.kg-node { cursor: pointer; outline: none; }
+.kg-node.is-dim { opacity: 0.14; }
+.kg-node.is-focus circle,
+.kg-node.is-focus rect { stroke: var(--accent); stroke-width: 2.5; }
+.kg-node.is-focus text { fill: var(--text-primary); }
+.kg-node:focus-visible circle,
+.kg-node:focus-visible rect { stroke: var(--accent); stroke-width: 2.5; }
+
+.kg-edge.is-dim { stroke: var(--line-strong); }
+
 .kg-node text {
   fill: var(--text-muted);
   font-family: var(--font-mono);
@@ -127,6 +139,31 @@
   stroke-width: 1.5;
 }
 .kg-node.is-type text { fill: var(--text-secondary); }
+
+/* ── Readout ────────────────────────────────────────────────────────────── */
+
+/* Sits inside the canvas so the eye does not have to leave the graph to read
+   what the graph just said. */
+.kg-readout {
+  position: absolute;
+  left: var(--s4);
+  right: var(--s4);
+  bottom: var(--s3);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  padding: var(--s2) var(--s3);
+  background: var(--surface);
+  border: var(--hair) solid var(--line-strong);
+  border-left: 2px solid var(--accent);
+  pointer-events: none;
+}
+.kg-readout.is-hint { border-left-color: var(--line-strong); }
+
+.kg-readout-kind { color: var(--text-muted); }
+.kg-readout-name { font-size: 13px; letter-spacing: var(--tracking-tight); }
+.kg-readout-body { font-size: 11.5px; color: var(--text-secondary); }
 
 /* ── Legend ─────────────────────────────────────────────────────────────── */
 

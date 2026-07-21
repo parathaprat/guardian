@@ -14,16 +14,18 @@
  */
 
 import type {
-  AgentDecision, CorrelationFinding, DispatchRecord, EvalArm, EvalArmId, EvalRun,
-  EventType, EvidenceRef, Incident, IncidentStatus, ResolutionOutcome, Responder,
-  ResponderStatus, SecurityEvent, SeededEvent, Severity, SimTime, Skill, TraceStep,
+  AgentDecision, CorrelationFinding, DispatchRecord, EngineKind, EvalArm, EvalArmId,
+  EvalRun, EventType, EvidenceRef, Incident, IncidentStatus, ResolutionOutcome,
+  Responder, ResponderStatus, SecurityEvent, SeededEvent, Severity, SimTime, Skill,
+  TraceStep,
 } from '../../shared/types';
-import { priorityFromSeverity } from '../../shared/types';
+import { ENGINE_LABELS, priorityFromSeverity } from '../../shared/types';
 import type { AgentContext, DispatchAgent, Memory, Simulator, WorldState } from '../contracts';
 import { WorldSimulator } from '../world/simulator';
 import { createMemory } from '../learn/index';
 import { ReasonerAgent } from '../agent/reasoner';
-import { ClaudeAgent } from '../agent/claude';
+import { LlmAgent } from '../agent/loop';
+import { buildProvider, resolveProviderChoice } from '../agent/index';
 import { runReflection } from '../agent/reflect';
 import { makeIdFactory } from '../util/ids';
 import { actionWasCorrect, computeMetrics, metricDelta } from './metrics';
@@ -32,8 +34,8 @@ import { actionWasCorrect, computeMetrics, metricDelta } from './metrics';
 //  TUNABLES
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Claude arms cost money and wall-clock, so the harness refuses to run long ones. */
-const CLAUDE_EVENT_CAP = 120;
+/** Hosted-model arms cost money and wall-clock, so the harness refuses to run long ones. */
+const LLM_EVENT_CAP = 120;
 const REASONER_EVENT_CAP = 5_000;
 
 /** Warm-up length for the learned arm when no live memory is supplied. */
@@ -342,6 +344,8 @@ async function runArm(spec: ArmSpec, stream: SeededEvent[]): Promise<Incident[]>
     let decision: AgentDecision;
     let trace: TraceStep[] = [];
     let decisionLatencyMs: number;
+    /** Which engine actually produced it; a failed hosted call degrades to the Reasoner. */
+    let decidedBy: EngineKind = 'reasoner';
 
     if (spec.agent && spec.memory) {
       const ctx = buildContext({
@@ -351,6 +355,7 @@ async function runArm(spec: ArmSpec, stream: SeededEvent[]): Promise<Incident[]>
       decision = out.decision;
       trace = out.trace;
       decisionLatencyMs = out.latencyMs;
+      decidedBy = out.engine;
     } else {
       const t0 = Date.now();   // real wall clock: this is a latency measurement, not sim logic
       decision = staticDecide(event, world, sim);
@@ -418,7 +423,7 @@ async function runArm(spec: ArmSpec, stream: SeededEvent[]): Promise<Incident[]>
       resolvedAt: now + (dispatch?.responseMs ?? 0),
       outcome: resolution.outcome,
       revealedTruth: seeded.truth,
-      engine: spec.agent ? spec.agent.engine : 'reasoner',
+      engine: decidedBy,
       linkedIncidentIds: sink.finding?.relatedIncidentIds ?? [],
     };
     incidents.push(incident);
@@ -554,7 +559,8 @@ function copyState(src: object, dst: object, byId: Map<string, object>): void {
 export interface RunEvalOptions {
   seed: number;
   eventCount: number;
-  useClaude: boolean;
+  /** Run the judgment layer on the configured hosted model rather than the Reasoner. */
+  useLlm: boolean;
   /** The running console's memory. Cloned, never mutated. */
   liveMemory?: Memory;
 }
@@ -563,18 +569,17 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
   const startedAt = Date.now();
   const caveats: string[] = [];
 
-  const wantClaude = opts.useClaude;
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
-  const useClaude = wantClaude && apiKey.length > 0;
-  if (wantClaude && !useClaude) {
-    caveats.push('ANTHROPIC_API_KEY is not set, the Claude request was ignored and both agent arms ran on the deterministic Reasoner.');
+  const choice = opts.useLlm ? resolveProviderChoice() : null;
+  const useLlm = choice !== null;
+  if (opts.useLlm && !useLlm) {
+    caveats.push('No ANTHROPIC_API_KEY or GROQ_API_KEY is set, the hosted-model request was ignored and both agent arms ran on the deterministic Reasoner.');
   }
 
-  const cap = useClaude ? CLAUDE_EVENT_CAP : REASONER_EVENT_CAP;
+  const cap = useLlm ? LLM_EVENT_CAP : REASONER_EVENT_CAP;
   const requested = Math.floor(opts.eventCount);
   const eventCount = Math.max(1, Math.min(Number.isFinite(requested) ? requested : 1, cap));
   if (requested > eventCount) {
-    caveats.push(`Requested ${requested} events, capped at ${eventCount}${useClaude ? ' (Claude arms are rate- and cost-limited)' : ''}.`);
+    caveats.push(`Requested ${requested} events, capped at ${eventCount}${useLlm ? ' (hosted-model arms are rate- and cost-limited)' : ''}.`);
   }
 
   // ── 1. Generate the stream exactly once. Every arm replays this list.
@@ -593,12 +598,9 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
   let tokensIn = 0;
   let tokensOut = 0;
   let engineFailures = 0;
-  const agent: DispatchAgent = useClaude
-    ? new ClaudeAgent({
-      apiKey,
-      model: process.env.SENTRY_MODEL ?? 'claude-opus-4-8',
-      effort: process.env.SENTRY_EFFORT ?? 'medium',
-      onUsage: (u) => { tokensIn += u.in; tokensOut += u.out; },
+  const agent: DispatchAgent = choice
+    ? new LlmAgent({
+      provider: buildProvider(choice, (u) => { tokensIn += u.in; tokensOut += u.out; }),
       onFailure: () => { engineFailures += 1; },
     })
     : new ReasonerAgent();
@@ -620,7 +622,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
   const coldIncidents = await runArm({
     id: 'cold',
     label: 'Agent, cold memory',
-    description: `${agent.engine === 'claude' ? 'Claude' : 'Reasoner'} judgment layer with all four memory channels enabled but empty at t=0.`,
+    description: `${ENGINE_LABELS[agent.engine]} judgment layer with all four memory channels enabled but empty at t=0.`,
     sim: coldSim,
     memory: coldMemory,
     agent,
@@ -680,7 +682,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
       'Fixed severity table, nearest available responder by ETA. No calibration, no responder model, no playbook, no precedent.',
       staticIncidents, oracle, world, sampleIndices),
     buildArm('cold', `Agent · cold memory`,
-      `${agent.engine === 'claude' ? 'Claude' : 'Reasoner'} judgment layer, all four memory channels enabled but empty at t=0. Learns online during the run.`,
+      `${ENGINE_LABELS[agent.engine]} judgment layer, all four memory channels enabled but empty at t=0. Learns online during the run.`,
       coldIncidents, oracle, world, sampleIndices),
     buildArm('learned', `Agent · learned memory`,
       `Identical judgment layer to the cold arm; memory ${provenance}.`,
@@ -691,10 +693,10 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
   const learnedMetrics = arms[2]!.metrics;
 
   if (engineFailures > 0) {
-    caveats.push(`${engineFailures} Claude call(s) failed and fell back to the deterministic reasoner mid-run.`);
+    caveats.push(`${engineFailures} ${ENGINE_LABELS[agent.engine]} call(s) failed and fell back to the deterministic reasoner mid-run.`);
   }
-  if (useClaude) {
-    caveats.push(`Claude arms are non-deterministic: rerunning this seed will not reproduce these numbers exactly. Token usage: ${tokensIn} in / ${tokensOut} out.`);
+  if (useLlm) {
+    caveats.push(`Hosted-model arms are non-deterministic: rerunning this seed will not reproduce these numbers exactly. Token usage: ${tokensIn} in / ${tokensOut} out.`);
   }
 
   return {
@@ -785,12 +787,12 @@ function errText(err: unknown): string {
 function buildNotes(args: {
   seed: number;
   eventCount: number;
-  engine: 'claude' | 'reasoner';
+  engine: EngineKind;
   provenance: string;
   liveMemory: boolean;
   caveats: string[];
 }): string {
-  const engineName = args.engine === 'claude' ? 'Claude' : 'Reasoner (deterministic)';
+  const engineName = args.engine === 'reasoner' ? 'Reasoner (deterministic)' : ENGINE_LABELS[args.engine];
   const lines: string[] = [];
 
   lines.push(`HELD CONSTANT across all three arms`);

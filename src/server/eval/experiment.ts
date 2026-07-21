@@ -18,7 +18,9 @@
  * ships.
  */
 
-import type { EvalRun, Experiment, ExperimentSummary, Metrics, SeedResult } from '../../shared/types';
+import type {
+  EngineKind, EvalRun, Experiment, ExperimentSummary, Metrics, SeedResult,
+} from '../../shared/types';
 import { runEval } from './harness';
 import type { RunEvalOptions } from './harness';
 
@@ -80,13 +82,13 @@ export async function runExperiment(opts: ExperimentOptions): Promise<Experiment
   const startedAt = Date.now();
   const seeds = seedsFor(opts.baseSeed, Math.max(2, Math.min(60, opts.seedCount)));
   const results: SeedResult[] = [];
-  let engine: 'claude' | 'reasoner' = 'reasoner';
+  let engine: EngineKind = 'reasoner';
 
   for (const seed of seeds) {
     const run = await runEval({
       seed,
       eventCount: opts.eventCount,
-      useClaude: opts.useClaude,
+      useLlm: opts.useLlm,
       ...(opts.liveMemory ? { liveMemory: opts.liveMemory } : {}),
     });
     engine = run.engine;

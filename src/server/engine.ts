@@ -293,11 +293,14 @@ export class OpsEngine {
       // The trace is streamed via onTraceStep, so start it empty to avoid duplicates.
       incident.trace = [];
       const ctx = this.buildContext(seeded.event, incident.id);
-      const { decision, latencyMs } = await this.agent.decide(ctx);
-      noteEngineCall(true);
+      const { decision, latencyMs, engine } = await this.agent.decide(ctx);
+      noteEngineCall(engine === this.agent.engine);
 
       incident.decision = decision;
       incident.decisionLatencyMs = latencyMs;
+      // Which engine actually decided, not which one was asked. A rate-limited
+      // hosted call degrades to the Reasoner and the card has to admit it.
+      incident.engine = engine;
       incident.linkedIncidentIds = decision.evidence
         .filter((e) => e.kind === 'correlation')
         .flatMap(() => this.correlate(seeded.event, 15 * 60_000).relatedIncidentIds);
@@ -569,21 +572,21 @@ export class OpsEngine {
    * into all twenty.
    */
   async runExperimentNow(opts: {
-    eventCount: number; seedCount: number; useClaude: boolean;
+    eventCount: number; seedCount: number; useLlm: boolean;
   }): Promise<Experiment> {
     return runExperiment({
       baseSeed: this.seed,
       seedCount: opts.seedCount,
       eventCount: opts.eventCount,
-      useClaude: opts.useClaude,
+      useLlm: opts.useLlm,
     });
   }
 
-  async runEvalNow(opts: { eventCount: number; useClaude: boolean }): Promise<EvalRun> {
+  async runEvalNow(opts: { eventCount: number; useLlm: boolean }): Promise<EvalRun> {
     const run = await runEval({
       seed: this.seed,
       eventCount: opts.eventCount,
-      useClaude: opts.useClaude,
+      useLlm: opts.useLlm,
       liveMemory: this.memory,
     });
     this.lastEval = run;

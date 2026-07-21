@@ -22,6 +22,12 @@
  * Layout is a hand-rolled spring/repulsion solver, warm-started from the previous
  * positions and re-run only when the topology changes, so new knowledge eases
  * into place instead of the whole graph jumping on every update.
+ *
+ * Past a few dozen edges any force-directed graph turns into a hairball, so this
+ * one is built to be *interrogated* rather than merely admired: hovering or
+ * focusing a node isolates its neighbourhood and writes out, in words, what the
+ * agent believes about that place or that alarm type. The picture is the way in;
+ * the sentence is the answer.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -275,9 +281,12 @@ function runLayout(
       p.x += Math.max(-MAX_STEP, Math.min(MAX_STEP, p.vx));
       p.y += Math.max(-MAX_STEP, Math.min(MAX_STEP, p.vy));
 
-      const m = H * 0.06;
-      p.x = Math.max(m, Math.min(W - m, p.x));
-      p.y = Math.max(m, Math.min(H - m, p.y));
+      // Asymmetric margins: type captions are drawn above their node, and the
+      // readout strip occupies the bottom of the canvas. A node parked in
+      // either band gets its label clipped.
+      const mx = H * 0.05;
+      p.x = Math.max(mx, Math.min(W - mx, p.x));
+      p.y = Math.max(H * 0.09, Math.min(H * 0.84, p.y));
     }
   }
 
@@ -324,6 +333,59 @@ function useBoxMetrics(ref: RefObject<HTMLDivElement | null>) {
 function seqFill(pReal: number): string {
   const i = Math.max(0, Math.min(4, Math.floor(pReal * 5)));
   return `var(--seq-${i + 1})`;
+}
+
+// ── focus ───────────────────────────────────────────────────────────────────
+
+interface Focus {
+  node: GNode;
+  /** Node ids to keep lit: the node itself and everything it connects to. */
+  lit: Set<string>;
+  edges: GEdge[];
+}
+
+function buildFocus(graph: Graph, id: string | null): Focus | null {
+  if (!id) return null;
+  const node = graph.nodes.find((n) => n.id === id);
+  if (!node) return null;
+
+  const lit = new Set<string>([id]);
+  const edges: GEdge[] = [];
+  for (const e of graph.edges) {
+    if (e.a !== id && e.b !== id) continue;
+    edges.push(e);
+    lit.add(e.a);
+    lit.add(e.b);
+  }
+  // A site is the parent of its zones, so keep those lit even though the spine
+  // carries no knowledge: otherwise focusing a site blanks its own building.
+  if (node.kind === 'site') {
+    for (const s of graph.spine) if (s.b === id) lit.add(s.a);
+  } else if (node.kind === 'zone' && node.siteId) {
+    lit.add(`site:${node.siteId}`);
+  }
+  edges.sort((x, y) => y.observations - x.observations);
+  return { node, lit, edges };
+}
+
+/**
+ * The focused node in a sentence. The graph shows that a belief exists; this
+ * says what it is, which is the part an ops manager can act on.
+ */
+function focusSentence(focus: Focus, labelOf: (id: string) => string): string {
+  const { node, edges } = focus;
+  if (edges.length === 0) {
+    return node.kind === 'type'
+      ? 'No resolved outcomes for this alarm type yet.'
+      : 'Nothing resolved here yet, so Sentry has no opinion about this place.';
+  }
+  const top = edges[0]!;
+  const other = labelOf(top.a === node.id ? top.b : top.a);
+  const noun = node.kind === 'type' ? 'place' : 'alarm type';
+  return `${edges.length} ${noun}${edges.length === 1 ? '' : 's'} · `
+    + `${focus.node.observations} outcome${focus.node.observations === 1 ? '' : 's'} folded in · `
+    + `strongest: ${other}, ${Math.round(top.pReal * 100)}% turned out real over ${top.observations}`
+    + (top.backoff ? ', borrowed from site history' : '');
 }
 
 // ── component ───────────────────────────────────────────────────────────────
@@ -374,6 +436,15 @@ export function KnowledgeGraph({ cells, world }: KnowledgeGraphProps) {
 
   const at = (id: string) => pos.get(id);
 
+  // Hover explores, click pins. Pinning matters because reading the sentence
+  // means moving the pointer away from the node that produced it.
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [pinned, setPinned] = useState<string | null>(null);
+  const focus = useMemo(() => buildFocus(graph, hovered ?? pinned), [graph, hovered, pinned]);
+
+  const labelOf = (id: string) => graph.nodes.find((n) => n.id === id)?.label ?? id;
+  const dimmed = (id: string) => focus !== null && !focus.lit.has(id);
+
   return (
     <div className="kg">
       <div className="kg-stats">
@@ -396,8 +467,9 @@ export function KnowledgeGraph({ cells, world }: KnowledgeGraphProps) {
 
         <svg
           viewBox={`0 0 ${W} ${H}`}
-          className="kg-svg"
+          className={`kg-svg${focus ? ' is-focused' : ''}`}
           preserveAspectRatio="xMidYMid meet"
+          onPointerLeave={() => setHovered(null)}
           role="img"
           aria-label={`Knowledge graph: ${graph.learnedPairs} learned connections across ${world.zones.length} zones from ${graph.totalObservations} resolved outcomes`}
         >
@@ -417,14 +489,15 @@ export function KnowledgeGraph({ cells, world }: KnowledgeGraphProps) {
             const a = at(e.a); const b = at(e.b);
             if (!a || !b) return null;
             const strength = e.observations / maxEdgeObs;
+            const off = focus !== null && !focus.edges.some((f) => f.id === e.id);
             return (
               <line
                 key={e.id}
                 x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                className={`kg-edge${e.backoff ? ' is-backoff' : ''}`}
+                className={`kg-edge${e.backoff ? ' is-backoff' : ''}${off ? ' is-dim' : ''}`}
                 stroke={seqFill(e.pReal)}
                 strokeWidth={u(0.7 + strength * PX.edgeMax)}
-                strokeOpacity={0.3 + strength * 0.55}
+                strokeOpacity={off ? 0.06 : 0.3 + strength * 0.55}
               >
                 <title>
                   {`${e.observations} outcome${e.observations === 1 ? '' : 's'}, `
@@ -442,12 +515,29 @@ export function KnowledgeGraph({ cells, world }: KnowledgeGraphProps) {
             const grow = n.kind === 'site' ? 0 : (n.observations / maxNodeObs) * 4;
             const r = n.kind === 'site' ? PX.siteR : (n.kind === 'zone' ? PX.zoneR : PX.typeR) + grow;
             const font = n.kind === 'site' ? PX.siteLabel : n.kind === 'zone' ? PX.zoneLabel : PX.typeLabel;
+            const isFocus = focus?.node.id === n.id;
             return (
               <g
                 key={n.id}
-                className={`kg-node is-${n.kind}${known ? ' is-known' : ''}`}
+                className={`kg-node is-${n.kind}${known ? ' is-known' : ''}`
+                  + `${dimmed(n.id) ? ' is-dim' : ''}${isFocus ? ' is-focus' : ''}`}
                 style={{ transform: `translate(${p.x}px, ${p.y}px)` }}
+                tabIndex={0}
+                role="button"
+                aria-label={`${n.label}, ${n.observations} outcomes`}
+                onPointerEnter={() => setHovered(n.id)}
+                onFocus={() => setHovered(n.id)}
+                onBlur={() => setHovered(null)}
+                onClick={() => setPinned((cur) => (cur === n.id ? null : n.id))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setPinned((cur) => (cur === n.id ? null : n.id));
+                  }
+                }}
               >
+                {/* Generous invisible hit target: the marks are small on purpose. */}
+                <circle className="kg-hit" r={u(Math.max(r + 8, 16))} />
                 <title>
                   {n.kind === 'type'
                     ? `${n.label}: ${n.observations} outcomes across the portfolio`
@@ -468,6 +558,20 @@ export function KnowledgeGraph({ cells, world }: KnowledgeGraphProps) {
             );
           })}
         </svg>
+
+        {focus ? (
+          <div className="kg-readout" role="status">
+            <span className="kg-readout-kind label">
+              {focus.node.kind === 'type' ? 'Alarm type' : focus.node.kind === 'site' ? 'Site' : 'Zone'}
+            </span>
+            <strong className="kg-readout-name">{focus.node.label}</strong>
+            <span className="kg-readout-body">{focusSentence(focus, labelOf)}</span>
+          </div>
+        ) : graph.totalObservations > 0 ? (
+          <div className="kg-readout is-hint">
+            <span className="kg-readout-body">Hover any node to isolate what Sentry has learned about it. Click to pin it.</span>
+          </div>
+        ) : null}
       </div>
 
       <div className="kg-legend">

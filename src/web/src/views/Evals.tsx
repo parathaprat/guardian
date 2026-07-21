@@ -8,6 +8,7 @@
 
 import { useMemo, useState } from 'react';
 import type { EvalArmId, EvalRun, Experiment, Metrics } from '../../../shared/types';
+import { ENGINE_LABELS } from '../../../shared/types';
 import { GroupedBars, LineChart, MetricTile, type BarGroup } from '../components/charts';
 import { EmptyState, Label, Panel, Pill, SegmentedControl, Spinner, Toggle, Tooltip } from '../components/ui';
 import { api } from '../lib/api';
@@ -35,14 +36,14 @@ export default function Evals() {
   const engine = useEngine();
 
   const [count, setCount] = useState(400);
-  const [useClaude, setUseClaude] = useState(false);
+  const [useLlm, setUseLlm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [onlyDisagree, setOnlyDisagree] = useState(false);
 
   const go = async () => {
     setBusy(true);
     try {
-      await api.runEval({ eventCount: count, useClaude });
+      await api.runEval({ eventCount: count, useLlm });
       pushToast('Evaluation complete.');
     } catch (e) {
       pushToast(e instanceof Error ? e.message : 'Eval failed', 'error');
@@ -79,15 +80,15 @@ export default function Evals() {
             />
           </div>
           <div className="eval-control">
-            <Tooltip content={engine.engine === 'claude'
-              ? 'Runs the judgment layer on Claude. Slower, costs tokens, and non-deterministic, the harness caps it at 120 events.'
-              : 'No ANTHROPIC_API_KEY is set, so the Reasoner is the only judgment engine available. The A/B result is still valid: both arms use it.'}
+            <Tooltip content={engine.engine !== 'reasoner'
+              ? `Runs the judgment layer on ${ENGINE_LABELS[engine.engine]}. Slower, costs tokens, and non-deterministic, so the harness caps it at 120 events.`
+              : 'No API key is set, so the Reasoner is the only judgment engine available. The A/B result is still valid: both arms use it.'}
             >
               <Toggle
-                checked={useClaude}
-                disabled={engine.engine !== 'claude'}
-                onChange={setUseClaude}
-                label="Use Claude for judgment"
+                checked={useLlm}
+                disabled={engine.engine === 'reasoner'}
+                onChange={setUseLlm}
+                label={`Use ${ENGINE_LABELS[engine.engine] === 'Reasoner' ? 'the hosted model' : ENGINE_LABELS[engine.engine]} for judgment`}
               />
             </Tooltip>
           </div>
@@ -163,7 +164,7 @@ function ExperimentSection() {
   const run = async () => {
     setBusy(true);
     try {
-      const result = await api.runExperiment({ eventCount: 400, seedCount, useClaude: false });
+      const result = await api.runExperiment({ eventCount: 400, seedCount, useLlm: false });
       setExp(result);
       pushToast(
         result.summary.significant

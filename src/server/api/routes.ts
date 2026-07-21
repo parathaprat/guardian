@@ -145,12 +145,12 @@ export function createRouter(engine: OpsEngine): Router {
 
   // ── evals ──────────────────────────────────────────────────────────────
   router.post('/evals/run', guard(async (req, res) => {
-    const body = (req.body ?? {}) as { eventCount?: unknown; useClaude?: unknown };
+    const body = (req.body ?? {}) as { eventCount?: unknown; useLlm?: unknown };
     const count = Number(body.eventCount);
     if (!Number.isFinite(count) || count < 1) return bad(res, 'eventCount must be a positive number');
     const run = await engine.runEvalNow({
       eventCount: Math.min(2000, Math.floor(count)),
-      useClaude: body.useClaude === true,
+      useLlm: body.useLlm === true,
     });
     res.json(run);
   }));
@@ -162,7 +162,7 @@ export function createRouter(engine: OpsEngine): Router {
    */
   router.post('/evals/experiment', guard(async (req, res) => {
     const body = (req.body ?? {}) as {
-      eventCount?: unknown; seedCount?: unknown; useClaude?: unknown;
+      eventCount?: unknown; seedCount?: unknown; useLlm?: unknown;
     };
     const count = Number(body.eventCount);
     const seeds = Number(body.seedCount);
@@ -171,7 +171,7 @@ export function createRouter(engine: OpsEngine): Router {
     const exp = await engine.runExperimentNow({
       eventCount: Math.min(2000, Math.floor(count)),
       seedCount: Math.min(40, Math.floor(seeds)),
-      useClaude: body.useClaude === true,
+      useLlm: body.useLlm === true,
     });
     res.json(exp);
   }));

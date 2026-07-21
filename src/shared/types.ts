@@ -20,6 +20,24 @@ export type Severity = 1 | 2 | 3 | 4 | 5;
 
 export const PRIORITY_ORDER: Record<Priority, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
 
+/**
+ * Which judgment layer produced a decision.
+ *
+ * `reasoner` is the deterministic local policy and is always available. The two
+ * LLM engines are interchangeable at this seam: the tools, the prompt and the
+ * trace format are identical, only the vendor behind them differs.
+ */
+export type EngineKind = 'claude' | 'groq' | 'reasoner';
+
+/** The two engines that require an API key. */
+export type LlmEngineKind = Exclude<EngineKind, 'reasoner'>;
+
+export const ENGINE_LABELS: Record<EngineKind, string> = {
+  claude: 'Claude',
+  groq: 'Groq',
+  reasoner: 'Reasoner',
+};
+
 export type Skill =
   | 'armed'
   | 'medical'
@@ -302,7 +320,7 @@ export interface Incident {
   /** Revealed only after resolution, this is what the UI shows in the ledger. */
   revealedTruth: EventTruth | null;
   /** Which engine produced the decision. */
-  engine: 'claude' | 'reasoner';
+  engine: EngineKind;
   /** ids of other incidents the agent correlated this with. */
   linkedIncidentIds: string[];
 }
@@ -441,7 +459,7 @@ export interface PlaybookProposal {
   summary: string;
   /** How many resolved incidents this pass analysed. */
   incidentsAnalysed: number;
-  engine: 'claude' | 'reasoner';
+  engine: EngineKind;
   status: 'pending' | 'applied' | 'dismissed';
 }
 
@@ -546,7 +564,7 @@ export interface EvalRun {
   createdAt: number;          // real wall-clock
   seed: number;
   eventCount: number;
-  engine: 'claude' | 'reasoner';
+  engine: EngineKind;
   arms: EvalArm[];
   /** learned - static, per metric. The headline number. */
   delta: Partial<Record<keyof Metrics, number>>;
@@ -600,7 +618,7 @@ export interface Experiment {
   createdAt: number;
   baseSeed: number;
   eventCount: number;
-  engine: 'claude' | 'reasoner';
+  engine: EngineKind;
   seeds: SeedResult[];
   summary: ExperimentSummary;
   durationMs: number;
@@ -622,7 +640,7 @@ export interface SimControls {
 }
 
 export interface EngineStatus {
-  engine: 'claude' | 'reasoner';
+  engine: EngineKind;
   model: string;
   effort: string;
   /** Present when the key is missing or a call failed. */

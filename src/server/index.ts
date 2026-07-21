@@ -60,9 +60,9 @@ app.use('/api', (_req, res) => {
 
 app.listen(PORT, () => {
   const status = engineStatus();
-  const mode = status.engine === 'claude'
-    ? `CLAUDE · ${status.model} · effort=${status.effort}`
-    : 'REASONER · local, deterministic';
+  const mode = status.engine === 'reasoner'
+    ? 'REASONER · local, deterministic'
+    : `${status.engine.toUpperCase()} · ${status.model} · effort=${status.effort}`;
 
   console.log('');
   console.log('  \x1b[1mSENTRY\x1b[0m \x1b[38;5;202m■\x1b[0m  Calvis AI Dispatch');
