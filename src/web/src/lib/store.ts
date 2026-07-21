@@ -41,6 +41,8 @@ export interface UiPrefs {
   /** The tool-call / trace inspector. Off by default, it is the technical view. */
   workOpen: boolean;
   queueFilter: QueueFilter;
+  /** True once the first-run walkthrough has been finished or skipped. */
+  tourDone: boolean;
 }
 
 export interface Toast {
@@ -82,7 +84,7 @@ const UI_KEY = 'sentry.ui';
  * empty teaches the operator it might be broken; "everything live" always has
  * something in it, and the Needs-you count sits right beside it.
  */
-const DEFAULT_UI: UiPrefs = { ingestOpen: false, workOpen: false, queueFilter: 'open' };
+const DEFAULT_UI: UiPrefs = { ingestOpen: false, workOpen: false, queueFilter: 'open', tourDone: false };
 const NO_IDS: readonly string[] = [];
 
 // Stable fallbacks so selectors never allocate on the null-snapshot path.
@@ -407,6 +409,7 @@ function initialUi(): UiPrefs {
         p.queueFilter === 'needs' || p.queueFilter === 'open' || p.queueFilter === 'all'
           ? p.queueFilter
           : DEFAULT_UI.queueFilter,
+      tourDone: typeof p.tourDone === 'boolean' ? p.tourDone : DEFAULT_UI.tourDone,
     };
   } catch {
     // Corrupt or unavailable storage must never cost the operator the console.
@@ -418,7 +421,8 @@ export function setUi(patch: Partial<UiPrefs>): void {
   const ui = { ...state.ui, ...patch };
   if (ui.ingestOpen === state.ui.ingestOpen
     && ui.workOpen === state.ui.workOpen
-    && ui.queueFilter === state.ui.queueFilter) return;
+    && ui.queueFilter === state.ui.queueFilter
+    && ui.tourDone === state.ui.tourDone) return;
   setState({ ui });
   try {
     localStorage.setItem(UI_KEY, JSON.stringify(ui));

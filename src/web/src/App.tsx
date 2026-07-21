@@ -6,13 +6,14 @@
  * SSE connection, hash routing, and the global key map.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Header, { VIEWS, type ConnectionState, type ViewId } from './components/Header';
 import { Kbd, Toasts } from './components/ui';
+import { Tour } from './components/Tour';
 import { api } from './lib/api';
 import {
-  select, toggleTheme, toggleUi, useConnection, useControls, useLiveStore,
-  useQueueIds, useReady, useSelection, useSnapshot, useTheme,
+  select, setUi, toggleTheme, toggleUi, useConnection, useControls, useLiveStore,
+  useQueueIds, useReady, useSelection, useSnapshot, useTheme, useUi,
 } from './lib/store';
 import Dispatch from './views/Dispatch';
 import Memory from './views/Memory';
@@ -68,9 +69,13 @@ export default function App() {
   const connection = useConnection();
   const theme = useTheme();
 
+  const ui = useUi();
   const [view, setView] = useState<ViewId>(readHash);
   const [help, setHelp] = useState(false);
+  const [tour, setTour] = useState(false);
   const [overrideNonce, setOverrideNonce] = useState(0);
+  /** Run state to restore when the walkthrough ends. */
+  const resumeAfterTour = useRef(false);
 
   // Hash routing keeps views linkable and survives a reload.
   useEffect(() => {
@@ -93,9 +98,36 @@ export default function App() {
     void (run ? api.startSim() : api.pauseSim()).catch(() => undefined);
   }, []);
 
+  // First run opens the walkthrough once the console has real data to point at.
+  // Waiting for `ready` matters: spotlighting an empty shell teaches nothing.
+  useEffect(() => {
+    if (ready && !ui.tourDone) setTour(true);
+  }, [ready, ui.tourDone]);
+
+  const startTour = useCallback(() => {
+    setHelp(false);
+    setTour(true);
+  }, []);
+
+  // A tour whose subject keeps moving cannot be followed, so the world holds
+  // still for the duration and is put back exactly as it was.
+  useEffect(() => {
+    if (!tour) return;
+    resumeAfterTour.current = controls?.running ?? false;
+    if (resumeAfterTour.current) setRunning(false);
+  }, [tour]);
+
+  const endTour = useCallback(() => {
+    setTour(false);
+    setUi({ tourDone: true });
+    if (resumeAfterTour.current) setRunning(true);
+    resumeAfterTour.current = false;
+  }, [setRunning]);
+
   // ── keyboard ────────────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (tour) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -164,7 +196,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [controls?.running, go, queueIds, selected, setRunning, view]);
+  }, [controls?.running, go, queueIds, selected, setRunning, view, tour]);
 
   const body = useMemo(() => {
     switch (view) {
@@ -212,6 +244,10 @@ export default function App() {
               <button type="button" className="btn btn--ghost btn--sm" onClick={() => setHelp(false)}>Close</button>
             </div>
             <div className="help-body">
+              <button type="button" className="tour-start" onClick={startTour}>
+                <span className="tour-start-title">Replay the walkthrough</span>
+                <span className="tour-start-sub">7 steps, about a minute</span>
+              </button>
               {SHORTCUT_GROUPS.map((group) => (
                 <section key={group.title} className="help-group">
                   <span className="label">{group.title}</span>
@@ -229,6 +265,8 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {tour && <Tour onClose={endTour} onGoView={go} />}
 
       <Toasts />
     </div>

@@ -93,14 +93,19 @@ export function ResponderStatusDot({ status }: { status: ResponderStatus }) {
 
 // ── surfaces ──────────────────────────────────────────────────────────────
 
-export function Panel({ eyebrow, title, actions, children, className, bodyClassName, scroll, bodyRef }: {
+export function Panel({
+  eyebrow, title, actions, children, className, bodyClassName, scroll, bodyRef,
+  'data-tour': dataTour,
+}: {
   eyebrow?: ReactNode; title?: ReactNode; actions?: ReactNode; children?: ReactNode;
   className?: string; bodyClassName?: string; scroll?: boolean;
   /** For panes that must measure themselves, the site map sizes to its box. */
   bodyRef?: Ref<HTMLDivElement>;
+  /** Anchor for the first-run walkthrough to spotlight. */
+  'data-tour'?: string;
 }) {
   return (
-    <section className={cx('panel', 'ui-panel', className)}>
+    <section className={cx('panel', 'ui-panel', className)} data-tour={dataTour}>
       {(eyebrow || title || actions) && (
         <header className="panel-head">
           <div className="ui-panel-titles">

@@ -71,7 +71,7 @@ export default function Header({
         </span>
       </div>
 
-      <nav className="hdr-tabs" aria-label="Views">
+      <nav className="hdr-tabs" aria-label="Views" data-tour="nav">
         {VIEWS.map((view, i) => (
           <a
             key={view}
@@ -111,7 +111,7 @@ export default function Header({
 
         <span className="hdr-rule" aria-hidden="true" />
 
-        <div className="hdr-transport">
+        <div className="hdr-transport" data-tour="transport">
           <button
             type="button"
             className="btn btn--sm btn--icon hdr-play"

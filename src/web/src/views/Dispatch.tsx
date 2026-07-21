@@ -108,6 +108,7 @@ export default function Dispatch({ overrideNonce }: { overrideNonce: number }) {
 
       <Panel
         className="dispatch-queue"
+        data-tour="queue"
         eyebrow="Incident queue"
         title={queueTitle(ui.queueFilter, counts)}
         actions={
@@ -329,7 +330,7 @@ function IncidentDetail({ incident, overrideNonce }: { incident: Incident | null
         <>
           {/* The lead. Everything an operator needs to accept or reject the call,
               above the fold, in words, before a single number appears. */}
-          <section className="det-lead">
+          <section className="det-lead" data-tour="verdict">
             <div className="det-verdict">
               <h2 className={`display display--m det-action is-${d.action}`}>{ACTION_PLAIN[d.action]}</h2>
               <PriorityChip priority={d.priority} />
@@ -338,7 +339,7 @@ function IncidentDetail({ incident, overrideNonce }: { incident: Incident | null
             <p className="det-instruction">{d.instruction}</p>
           </section>
 
-          <section className="det-belief-wrap">
+          <section className="det-belief-wrap" data-tour="belief">
             {/* The contrast that tells the whole story: what the device claimed
                 versus what the agent believes after consulting memory. */}
             <div className="det-belief">
@@ -420,7 +421,7 @@ function EvidenceRail({ evidence }: { evidence: EvidenceRef[] }) {
   const peak = Math.max(...ranked.map((ev) => Math.abs(ev.weight)), 0.01);
 
   return (
-    <section className="det-section">
+    <section className="det-section" data-tour="evidence">
       <div className="det-section-head">
         <Label>What Sentry checked</Label>
         <span className="det-section-note">ranked by how much it moved the call</span>
@@ -643,7 +644,7 @@ function OperatorBar({ incident, overriding, setOverriding }: {
   if (!incident.decision) return null;
 
   return (
-    <div className="op-bar">
+    <div className="op-bar" data-tour="actions">
       {!overriding ? (
         <>
           <button type="button" className="btn btn--primary op-cta" disabled={busy} onClick={() => void send('confirm')}>

@@ -151,6 +151,34 @@ smoke test asserted "learned beats static" on 120 events against memory a few
 minutes old, where the honest answer is that it is close to a coin flip. I moved the
 claim to where it is measurable rather than weakening it until it passed.
 
+### Two things added for the people who actually have to use it
+
+**A first-run walkthrough.** The target user is a shift supervisor who will never
+read a README. Seven steps, anchored to the real controls rather than to
+screenshots of them, in the language they already use. Three details make it work
+rather than annoy: it pauses the world for the duration and restores the previous
+run state on exit, a step whose anchor is missing degrades to a centred card
+instead of pointing at nothing, and it takes the keyboard in capture phase so the
+console's own single-key shortcuts stay dormant while the arrow keys drive the
+tour.
+
+**The knowledge graph.** Every other view reports what the agent knows as
+numbers. This one shows its shape. The skeleton (sites and zones) is the world it
+was handed; every edge between a place and an alarm type was earned from a
+resolved outcome, so it begins nearly empty and visibly fills. Colour is the
+learned P(real), thickness is the evidence behind it, and dashed edges are the
+hierarchical backoff standing in where a zone has no history of its own, which is
+exactly the cold-start question a director of security asks first.
+
+Layout is a hand-rolled spring solver, warm-started and re-run only when the
+topology changes, so new knowledge eases into place instead of the whole graph
+jumping on every update. It is deliberately not a general graph library: pinning
+the three sites is what keeps the picture stable enough to read as learning
+rather than as churn.
+
+I would rather it look sparse and honest than dense and decorative. Reset the
+memory and it goes back to nothing, which is the point.
+
 ## Decision 5: Treat the UI as the product
 
 The brief says "not a demo," so the console is built like a shipped tool: a fixed

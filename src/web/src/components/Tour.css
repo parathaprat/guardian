@@ -1,0 +1,121 @@
+/* First-run walkthrough. Sits above everything except a toast. */
+
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+}
+
+/* Four panels leaving a hole. The spotlit control keeps its own colours, which
+   matters when the thing being explained is a colour. */
+.tour-scrim {
+  position: fixed;
+  background: rgba(13, 13, 13, 0.62);
+  animation: tour-fade var(--dur) var(--ease);
+}
+.tour-scrim--full { inset: 0; }
+
+@keyframes tour-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.tour-ring {
+  position: fixed;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 1px rgba(234, 81, 18, 0.35), 0 0 22px rgba(234, 81, 18, 0.28);
+  pointer-events: none;
+  transition: top var(--dur) var(--ease), left var(--dur) var(--ease),
+              width var(--dur) var(--ease), height var(--dur) var(--ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-scrim, .tour-ring { animation: none; transition: none; }
+}
+
+/* ── Card ───────────────────────────────────────────────────────────────── */
+
+.tour-card {
+  position: fixed;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  padding: var(--s4) var(--s5) var(--s4);
+  background: var(--surface);
+  border: var(--hair) solid var(--line-strong);
+  border-top: 2px solid var(--accent);
+  box-shadow: var(--shadow-pop);
+  outline: none;
+  transition: top var(--dur) var(--ease), left var(--dur) var(--ease);
+}
+
+.tour-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+.tour-count { font-size: 10px; color: var(--text-muted); }
+
+.tour-title {
+  margin: var(--s3) 0 var(--s2);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.2;
+}
+
+.tour-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.tour-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: var(--hair) solid var(--line);
+}
+.tour-key { display: flex; align-items: center; gap: var(--s3); font-size: 11px; color: var(--text-muted); }
+
+.tour-dots { display: flex; gap: 5px; margin: var(--s4) 0 var(--s3); }
+.tour-dot {
+  width: 100%;
+  height: 2px;
+  background: var(--line-strong);
+  transition: background var(--dur-fast) var(--ease);
+}
+.tour-dot.is-done { background: var(--ink-3); }
+.tour-dot.is-on { background: var(--accent); }
+
+.tour-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+.tour-foot .kbd { background: transparent; border-color: currentColor; color: inherit; opacity: 0.65; }
+
+/* ── Launcher, for anyone who skipped it ────────────────────────────────── */
+
+.tour-start {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  border: var(--hair) solid var(--line-strong);
+  border-left: 2px solid var(--accent);
+  background: var(--surface-sunken);
+  text-align: left;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.tour-start:hover { border-color: var(--accent); }
+.tour-start-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+.tour-start-sub { font-size: 11px; color: var(--text-muted); margin-left: auto; }

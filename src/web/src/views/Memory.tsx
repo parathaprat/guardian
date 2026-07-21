@@ -13,6 +13,7 @@ import { useMemo, useState } from 'react';
 import type { CalibrationCell, EventType, PlaybookProposal, PlaybookRule } from '../../../shared/types';
 import { ACTION_LABELS, ALL_EVENT_TYPES, EVENT_LABELS } from '../../../shared/types';
 import { Heatmap, type HeatCell } from '../components/charts';
+import { KnowledgeGraph } from '../components/KnowledgeGraph';
 import {
   ConfidenceBar, ConfirmButton, EmptyState, Label, Panel, Pill, Spinner, StatusDot,
 } from '../components/ui';
@@ -28,6 +29,7 @@ export default function Memory() {
   const playbook = usePlaybook();
   const proposals = useProposals();
   const models = useResponderModels();
+  const world = useWorld();
   const [busy, setBusy] = useState(false);
 
   const active = playbook.filter((r) => r.status === 'active');
@@ -64,6 +66,24 @@ export default function Memory() {
           <Stat label="Pending proposals" value={pending.length} accent={pending.length > 0} />
         </div>
       </header>
+
+      <section className="view-section" data-tour="graph">
+        <div className="view-section-head">
+          <div>
+            <Label>What it knows</Label>
+            <h2 className="view-h2">The knowledge graph</h2>
+          </div>
+          <Pill>grows as outcomes resolve</Pill>
+        </div>
+        <Panel bodyClassName="kg-body">
+          <KnowledgeGraph cells={calibration} world={world} />
+        </Panel>
+        <p className="view-caption">
+          Sites and zones are the world Sentry was handed. Every connection between a place and
+          an alarm type was earned from an outcome it watched resolve, so an empty graph is an
+          honest one. Reset the memory and watch it rebuild itself.
+        </p>
+      </section>
 
       <CalibrationSection cells={calibration} />
 

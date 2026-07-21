@@ -111,9 +111,16 @@ this world, and watching the agent learn to discount it is the whole point. The
 evidence rail shows *which memory* moved the decision, with signed weights. When
 an incident resolves, ground truth is revealed with a right/wrong verdict.
 
-**MEMORY**: the calibration heatmap, the responder models, and the playbook. Hit
-**RUN REFLECTION NOW** to make the agent draft policy changes, then approve them
-as a diff. **RESET MEMORY** wipes all four channels so you can watch it learn from zero.
+**MEMORY**: opens with the **knowledge graph**, which is the calibration memory
+drawn rather than tabulated. Sites and zones are the world Sentry was handed;
+every connection between a place and an alarm type was earned from an outcome it
+watched resolve, so it starts nearly empty and fills in as you watch. Edge colour
+is the learned P(real), edge weight is how many outcomes are behind it, and
+dashed edges are knowledge borrowed from site-wide history where a zone has none
+yet, which is the cold-start story made visible. Below it: the calibration
+heatmap and the playbook. Hit **RUN REFLECTION NOW** to make the agent draft
+policy changes, then approve them as a diff. **RESET MEMORY** wipes all four
+channels so you can watch the graph rebuild itself from nothing.
 
 **EVALS**: the A/B replay for one world, the **multi-world experiment** with its
 confidence interval, and the live learning curve on a sliding window. If the
@@ -122,6 +129,11 @@ than quoting the best world.
 
 **ROSTER**: guards and robots as learned assets. Every number was learned; the
 simulator's hidden parameters are stripped server-side before the snapshot ships.
+
+**A walkthrough runs on first open.** Seven steps, plain language, each one
+spotlighting the real control it describes. It pauses the world while it runs
+(a tour whose subject keeps moving cannot be followed) and puts the run state
+back afterwards. Replay it any time from the `?` panel.
 
 **The console is built for the person on shift**, so it opens with the decision
 in plain words and the two buttons that matter. The technical surfaces (the raw
