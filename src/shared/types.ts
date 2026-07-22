@@ -23,18 +23,19 @@ export const PRIORITY_ORDER: Record<Priority, number> = { P0: 0, P1: 1, P2: 2, P
 /**
  * Which judgment layer produced a decision.
  *
- * `reasoner` is the deterministic local policy and is always available. The two
- * LLM engines are interchangeable at this seam: the tools, the prompt and the
- * trace format are identical, only the vendor behind them differs.
+ * `reasoner` is the deterministic local policy and is always available with no
+ * key. `gemini` is the hosted judgment layer. They sit behind one seam: the
+ * tools, the evidence and the trace format are identical either way, so an
+ * incident decided by one is directly comparable to an incident decided by the
+ * other.
  */
-export type EngineKind = 'claude' | 'groq' | 'reasoner';
+export type EngineKind = 'gemini' | 'reasoner';
 
-/** The two engines that require an API key. */
+/** The engine that requires an API key. */
 export type LlmEngineKind = Exclude<EngineKind, 'reasoner'>;
 
 export const ENGINE_LABELS: Record<EngineKind, string> = {
-  claude: 'Claude',
-  groq: 'Groq',
+  gemini: 'Gemini',
   reasoner: 'Reasoner',
 };
 

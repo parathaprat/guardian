@@ -128,8 +128,7 @@ function printExperiment(exp: Experiment): void {
 async function main(): Promise<void> {
   const seed = arg('seed', Number(process.env.SENTRY_SEED ?? 20260721));
   const events = arg('events', 400);
-  // `--claude` kept as an alias so older notes and scripts keep working.
-  const useLlm = process.argv.includes('--llm') || process.argv.includes('--claude');
+  const useLlm = process.argv.includes('--llm');
 
   if (process.argv.includes('--seeds')) {
     await runExperimentMode(seed, events, useLlm);

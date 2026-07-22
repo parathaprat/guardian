@@ -4,7 +4,7 @@
  * Every tool returns a one-line `label` for the trace, a JSON-serialisable
  * `result` (what the model reads back), and `evidence` citing exactly which
  * memory objects were consulted. Both engines run the same tools, so the trace
- * inspector renders identically whether Claude or the reasoner is driving.
+ * inspector renders identically whether the hosted model or the reasoner is driving.
  *
  * When `ctx.useMemory` is false the four memory-backed tools answer honestly
  * ("no memory available") instead of reading the stores. That honesty is the

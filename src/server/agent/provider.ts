@@ -6,19 +6,19 @@
  * vendor file. This module defines the smallest interface that a hosted model
  * has to satisfy to drive that loop, and `loop.ts` runs the loop against it.
  *
- * Two things made this worth abstracting rather than copying:
+ * Why the seam exists at all, given there is one provider behind it today:
  *
- *   1. The trace inspector is the product. Every provider has to surface its
+ *   1. The trace inspector is the product. Whatever answers has to surface its
  *      reasoning and its tool round-trips in the same `TraceStep` shape, or the
- *      console silently degrades depending on which key is in `.env`.
- *   2. A second provider is the honest way to show the memory layer is doing the
- *      work. If the numbers hold across two different model families, the gain
- *      is coming from the Bayesian channels rather than from one vendor's
- *      idiosyncrasies.
+ *      console silently degrades depending on what is in `.env`.
+ *   2. The local Reasoner and the hosted model must be swappable without the
+ *      eval noticing. Holding the judgment layer constant while varying only
+ *      memory is the entire basis of the learning claim, and that only works if
+ *      the two are interchangeable at a real interface.
  *
- * A provider owns its own conversation history, because message formats differ
- * in ways no lowest common denominator survives: Anthropic threads signed
- * thinking blocks back through the turn, OpenAI-shaped APIs thread tool-call ids.
+ * A provider owns its own conversation history rather than exposing a message
+ * array, because message formats differ in ways no lowest common denominator
+ * survives, and that detail should not leak into the loop.
  */
 
 import type { LlmEngineKind } from '../../shared/types';
@@ -76,7 +76,8 @@ export interface LlmProvider {
    * the incidents that actually need judgment instead of on nuisance alarms the
    * local policy already handles correctly.
    *
-   * Optional: a provider with no metered window never reports pressure.
+   * Optional: an endpoint that reports no rate-limit headers never registers
+   * pressure, and nothing else changes.
    */
   underPressure?(): boolean;
   /** Start a dispatch conversation. `tools` order is frozen for cache stability. */

@@ -298,18 +298,13 @@ function num(v: number | undefined): string {
   return v === undefined ? '-' : FMT.format(v);
 }
 
-/**
- * `claude-opus-4-8[1m]` → `Opus 4.8`, `openai/gpt-oss-120b` → `gpt oss 120b`.
- * Falls back to the raw id with separators softened.
- */
+/** `gemini-2.5-flash` → `2.5 flash`. Falls back to the id with separators softened. */
 function prettyModel(id: string): string {
-  const base = id
-    .replace(/^[^/]+\//, '')                 // vendor namespace, e.g. `openai/`
-    .replace(/^claude-/, '')
-    .replace(/-(latest|\d{8})$/, '');
-  const m = /^(opus|sonnet|haiku)-(\d+)-(\d+)/i.exec(base);
-  if (m) return `${m[1][0].toUpperCase()}${m[1].slice(1).toLowerCase()} ${m[2]}.${m[3]}`;
-  return base.replace(/[-_]/g, ' ');
+  return id
+    .replace(/^[^/]+\//, '')                 // vendor namespace, if the id carries one
+    .replace(/^gemini-/, '')
+    .replace(/-(latest|\d{8})$/, '')
+    .replace(/[-_]/g, ' ');
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────

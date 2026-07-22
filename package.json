@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "SENTRY \u2014 an AI dispatch agent for physical security operations. Built for Calvis.",
+  "description": "SENTRY — an AI dispatch agent for physical security operations. Built for Calvis.",
   "engines": {
     "node": ">=20"
   },
@@ -19,7 +19,6 @@
     "experiment": "tsx src/server/eval/cli.ts --seeds 20 --events 400"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.112.4",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",

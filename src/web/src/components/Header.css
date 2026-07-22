@@ -253,10 +253,8 @@
   white-space: nowrap;
   cursor: default;
 }
-/* Either hosted engine lights up. Which vendor is behind it is written in the
-   label, so it does not also need its own colour. */
-.hdr-engine-btn[data-engine='claude'],
-.hdr-engine-btn[data-engine='groq'] {
+/* The hosted engine lights up; the local Reasoner stays quiet. */
+.hdr-engine-btn[data-engine='gemini'] {
   border-color: var(--accent);
   background: var(--accent-wash);
   color: var(--accent);

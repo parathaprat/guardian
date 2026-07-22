@@ -15,7 +15,7 @@
                 │ evidence + EvidenceRef[] (citations)
                 ▼
 ┌───────────────────────────────────────────────────────────────────────┐
-│  JUDGMENT     Claude (Opus 4.8, adaptive thinking)  ──or──  Reasoner   │
+│  JUDGMENT     Gemini 2.5 Flash  ──or──  deterministic Reasoner         │
 │               → AgentDecision { action, priority, severity, pFalse,    │
 │                 confidence, responder, rationale, evidence[] }         │
 └───────────────┬───────────────────────────────────────────────────────┘

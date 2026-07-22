@@ -184,61 +184,52 @@ place or that alarm type. The picture is the way in; the sentence is the answer.
 I would rather it look sparse and honest than dense and decorative. Reset the
 memory and it goes back to nothing, which is the point.
 
-### One more channel added later: a second model vendor
+### The hosted judgment layer, and what a free tier taught me
 
-The judgment layer now runs on **either Groq or Claude**, selected by whichever
-key is in `.env`. What matters is where the seam was cut. The tools, the prompt,
-the agentic loop and the `TraceStep` format are shared and vendor-free; each
-provider implements only a session that can take a turn and hand back reasoning
-plus tool calls.
+The judgment layer runs on **Gemini 2.5 Flash**, reached through its
+OpenAI-compatible endpoint over plain `fetch`. Everything vendor-neutral (the
+tools, the prompt, the loop, the `TraceStep` format) sits behind an
+`LlmProvider` interface; the vendor file implements only a session that can take
+a turn and hand back reasoning plus tool calls.
 
-That is not abstraction for its own sake. The entire repo exists to argue that
-the measured gain comes from the Bayesian memory rather than from a model having
-a good day. Being able to swap the model family and re-run the same experiment is
-the cheapest available test of that argument, and it costs one interface.
+Keeping that seam even with one provider behind it is deliberate. The entire
+repo argues that the measured gain comes from the Bayesian memory rather than
+from a model having a good day, and that argument only holds if the judgment
+engine is genuinely swappable, which is exactly what the eval does when it holds
+the engine constant and varies only memory.
 
-Two implementation choices worth defending:
-
-**No SDK for Groq.** One documented JSON request, one documented JSON response.
-A dependency would have bought retries, which are twenty lines here, and cost
+**No SDK.** One documented JSON request, one documented JSON response. A
+dependency would have bought retries, which are twenty lines here, and cost
 control over the exact error text that reaches the trace inspector, which is the
-surface this product is about.
+surface this product is about. The dependency list is now Express, React and
+Vite.
 
-**Rate limits are treated as a design constraint, not an error path.** Groq's
-free tier meters tokens per minute and charges the *requested* completion budget
-against that meter, not what the model produces. I measured before reacting, and
-the measurement changed the architecture rather than a config value.
-
-It also picked the model. `llama-3.3-70b-versatile` beat `openai/gpt-oss-120b`
-in the real console, not because it reasons better but because the binding
-constraint is the window rather than the model: a 12,000/minute allowance instead
-of 8,000, and about 150 completion tokens on a decision instead of several
-hundred spent narrating first. 83% of decisions land on it at 4x speed against
-50%, at a 1.7s median. The cost is no reasoning rows in the trace. On a metered
-free tier that is the right trade, because a decision that lands beats a decision
-that narrates.
+**Rate limits are a design constraint, not an error path.** A metered endpoint
+bills the *requested* completion budget rather than what the model produces, so
+unused headroom is paid for in throughput. I measured before reacting, and the
+measurement changed the architecture rather than a config value.
 
 A decision under the agentic loop cost two turns at roughly 5,400 tokens each,
-because the fixed prompt is re-sent every turn. That is more than a whole
-minute's allowance, so a decision **could never complete**, and the tokens were
-spent anyway on a call that ended in a fallback. The first version of this
-integration got 0 of 6 decisions onto the hosted model and burned real tokens
-doing it.
+because the fixed prompt is re-sent every turn. Measured against a free tier that
+was more than a whole minute's allowance, so a decision **could never complete**,
+and the tokens were spent anyway on calls that ended in a fallback. The first
+version of that integration got 0 of 6 decisions onto the hosted model and burned
+real tokens doing it.
 
-So against a metered provider the loop inverts. The six evidence tools are
-deterministic, local and free, so they run here; their results go into the
-prompt, their schemas come *out* of the request, and the model is asked once for
-the only thing it uniquely provides, which is the judgment. One call, about 5,900
-tokens, fits in one window. That took it to 3 of 6, and to nearly all of them at
-1x. What is lost is real and I would rather name it than bury it: the agent no
-longer chooses its own evidence. What the operator sees is unchanged, since the
-trace still shows every tool call, every result, the reasoning and the decision.
+So the loop inverts by default. The six evidence tools are deterministic, local
+and free, so they run here; their results go into the prompt, their schemas come
+*out* of the request, and the model is asked once for the only thing it uniquely
+provides, which is the judgment. One call instead of three. What is lost is real
+and I would rather name it than bury it: the agent no longer chooses its own
+evidence. What the operator sees is unchanged, since the trace still shows every
+tool call, every result, the reasoning and the decision. `SENTRY_EVIDENCE=agentic`
+puts the multi-turn loop back for anyone who wants to watch it.
 
-Two smaller pieces around it. The provider reads the real budget from Groq's own
-response headers and declines locally when the next call cannot fit, so an
-incident degrades to the Reasoner in a millisecond rather than stalling the queue
-for thirty seconds and failing anyway. And when the window is nearly spent, the
-remainder is reserved for life-safety and high-severity alarms, keyed off the
+Two smaller pieces around it. The provider reads whatever budget the endpoint
+reports in its response headers and declines locally when the next call cannot
+fit, so an incident degrades to the Reasoner in a millisecond rather than
+stalling the queue and then failing anyway. And when the window is nearly spent,
+the remainder is reserved for life-safety and high-severity alarms, keyed off the
 prior cost of being wrong rather than off the model's own confidence, which would
 be circular. Live decisions fail fast; the human-initiated reflection pass, which
 has no equally good substitute, waits out the window instead.
@@ -273,8 +264,7 @@ rather show the working than assert good taste.
 
 One `npm install`, no database, no Docker, no external services, no native modules.
 Event-sourced JSONL, a ~120-line store on `useSyncExternalStore`, hand-rolled SVG
-charts. The entire dependency list is the Anthropic SDK, Express, React, and Vite;
-the Groq provider is plain `fetch`.
+charts, and no model SDK. The entire dependency list is Express, React and Vite.
 
 Reviewers who cannot run something do not evaluate it. That is worth more than any
 architectural elegance I could have bought with a heavier stack.

@@ -572,7 +572,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
   const choice = opts.useLlm ? resolveProviderChoice() : null;
   const useLlm = choice !== null;
   if (opts.useLlm && !useLlm) {
-    caveats.push('No ANTHROPIC_API_KEY or GROQ_API_KEY is set, the hosted-model request was ignored and both agent arms ran on the deterministic Reasoner.');
+    caveats.push('No GEMINI_API_KEY is set, the hosted-model request was ignored and both agent arms ran on the deterministic Reasoner.');
   }
 
   const cap = useLlm ? LLM_EVENT_CAP : REASONER_EVENT_CAP;

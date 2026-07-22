@@ -1,10 +1,12 @@
 /**
- * The Groq provider.
+ * The Gemini provider.
  *
- * Groq serves open-weight models on their own inference hardware behind an
- * OpenAI-shaped API. For this product that trade is a good one: a dispatch
- * console is a latency-sensitive surface, and a decision that lands in a second
- * rather than four changes how the screen feels to work at.
+ * Google exposes Gemini behind an OpenAI-shaped `/chat/completions` endpoint, so
+ * this talks to that rather than to the native `generateContent` API. Two
+ * reasons: the free tier is the most generous of the hosted options by a wide
+ * margin, which is what makes a live demo possible at all, and the compatibility
+ * layer keeps the request shape identical to every other OpenAI-dialect endpoint,
+ * so the same file would point at a different vendor with one URL change.
  *
  * Two deliberate choices:
  *
@@ -13,27 +15,26 @@
  *     which are twenty lines here, and cost control over the exact error text
  *     that reaches the trace inspector, which is the surface this whole product
  *     is about.
- *   - **Capability probing, not a model allowlist.** Reasoning traces and
- *     schema-constrained output are not available on every model Groq hosts, and
- *     a hard-coded list of which is which rots the day they add one. Instead the
- *     first request asks for both; a 400 that names the unsupported feature
- *     switches it off for the rest of the process and the call is retried. The
- *     console degrades to fewer trace rows rather than to an error card.
+ *   - **Capability probing, not a model allowlist.** Schema-constrained output
+ *     is not available on every model or every compatibility layer, and a
+ *     hard-coded list of which is which rots on contact. The first reflection
+ *     request asks for it; a 400 that names the feature switches it off for the
+ *     rest of the process and the schema is enforced by the prompt instead. No
+ *     reasoning controls are sent at all: Gemini 2.5 thinks by default, and the
+ *     knobs for it are the least portable part of the dialect.
  *
- * On rate limits, which are the binding constraint here rather than an edge
- * case: Groq's free tier meters tokens per minute, and it counts the requested
- * completion budget against that meter, not just the tokens actually produced.
- * A fixed prompt of roughly four thousand tokens therefore buys one or two
- * decisions a minute. This provider tracks the real budget from the response
- * headers and refuses locally when the next call cannot fit, so the incident
- * falls back to the Reasoner in a millisecond instead of stalling the queue for
- * thirty seconds and then failing anyway. Slower simulation speeds keep the
- * hosted model in the loop; 64x will outrun any free tier.
+ * On rate limits, which are a design constraint on any free tier rather than an
+ * edge case: a metered endpoint counts the *requested* completion budget against
+ * its meter, not just the tokens actually produced, so unused headroom is paid
+ * for in throughput. This provider reads whatever budget the endpoint reports in
+ * its response headers and refuses locally when the next call cannot fit, so an
+ * incident falls back to the Reasoner in a millisecond instead of stalling the
+ * queue and then failing anyway. An endpoint that reports no such headers simply
+ * never registers pressure, and nothing else changes.
  *
- * That measurement is also why `loop.ts` runs one-shot against a metered
- * provider: a two-turn agentic decision costs more than an entire minute's
- * allowance, so it could never complete, and the tokens were being spent on
- * calls that ended in a fallback regardless.
+ * The same arithmetic is why `loop.ts` runs one-shot here: an agentic loop
+ * re-sends the fixed prompt every turn, which turned a decision into more tokens
+ * than a whole minute's allowance on the tier this was first measured against.
  */
 
 import type {
@@ -42,14 +43,14 @@ import type {
 import { RETRY, isRetryable, sleep } from './provider';
 import type { ToolDef } from './tools';
 
-const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
+const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
 /**
- * Completion budgets, deliberately tight. Groq charges the *requested* budget
- * against the per-minute token meter, not the tokens actually produced, so
- * unused headroom is paid for in throughput. A measured `submit_decision`
- * payload with a three-sentence rationale runs about 150 tokens, so 700 is
- * already four times what the job needs.
+ * Completion budgets, deliberately tight. A metered endpoint charges the
+ * *requested* budget rather than the tokens actually produced, so unused
+ * headroom is paid for in throughput. A measured `submit_decision` payload with
+ * a three-sentence rationale runs about 150 tokens, so 700 is already four times
+ * what the job needs.
  */
 const CHAT_MAX_TOKENS = 700;
 const JSON_MAX_TOKENS = 4096;
@@ -65,29 +66,14 @@ const TYPICAL_CALL_TOKENS = 5_800;   // measured: ~5,050 prompt + the completion
 const MAX_BUDGET_WAIT_MS = 70_000;
 
 /**
- * Chosen by measurement, not by reputation.
+ * Flash rather than Pro, deliberately.
  *
- * Against the real console at 4x it completed 4 of 6 decisions where
- * `openai/gpt-oss-120b` completed 3, because the constraint here is the token
- * window rather than the model: llama-3.3 gets a 12,000/minute allowance instead
- * of 8,000, and spends about 150 completion tokens on a decision rather than
- * several hundred on reasoning first. It is also the faster of the two on the
- * wire, at roughly two seconds per decision.
- *
- * The cost is that it exposes no reasoning trace, so the inspector shows tool
- * calls, results and the decision but no "thinking" rows. On a metered free tier
- * that is the right trade: a decision that lands beats a decision that narrates.
+ * A dispatch console is a latency surface: the operator is watching the card
+ * fill in. Flash answers in about a second, has the most headroom on the free
+ * tier, and the judgment being asked for here is a bounded one, since the
+ * evidence has already been gathered and weighed before the model sees it.
  */
-export const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
-
-/** SENTRY speaks Anthropic's five-step effort scale; Groq takes three. */
-function toReasoningEffort(effort: string): 'low' | 'medium' | 'high' {
-  switch (effort) {
-    case 'low': return 'low';
-    case 'high': case 'xhigh': case 'max': return 'high';
-    default: return 'medium';
-  }
-}
+export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -102,15 +88,17 @@ interface ChatResponse {
     finish_reason?: string;
     message?: {
       content?: string | null;
+      /** Thought summaries, where the endpoint returns them at all. */
       reasoning?: string | null;
+      reasoning_content?: string | null;
       tool_calls?: Array<{ id: string; type?: string; function?: { name?: string; arguments?: string } }>;
     };
   }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
-/** Groq surfaces refusals as a finish reason rather than a distinct stop type. */
-const REFUSAL_REASONS = new Set(['content_filter']);
+/** Refusals arrive as a finish reason rather than a distinct stop type. */
+const REFUSAL_REASONS = new Set(['content_filter', 'safety', 'prohibited_content', 'blocklist']);
 
 /**
  * What the account has left in the current per-minute window, as reported by
@@ -124,14 +112,14 @@ interface TokenBudget {
 }
 
 /** Distinguishable so the trace can say "rate limited" rather than "failed". */
-export class GroqRateLimitError extends Error {
+export class GeminiRateLimitError extends Error {
   constructor(message: string, readonly retryInMs: number) {
     super(message);
-    this.name = 'GroqRateLimitError';
+    this.name = 'GeminiRateLimitError';
   }
 }
 
-/** Groq writes reset windows as `7.66s`, `2m59.56s`, `120ms`. */
+/** Reset windows arrive as `7.66s`, `2m59.56s`, `120ms`, or bare seconds. */
 function parseDuration(raw: string | null): number | null {
   if (!raw) return null;
   const direct = Number(raw);
@@ -152,7 +140,7 @@ function estimateTokens(body: Record<string, unknown>, maxCompletion: number): n
   return Math.ceil(JSON.stringify(body).length / 4) + maxCompletion;
 }
 
-function toGroqTools(tools: ToolDef[]) {
+function toOpenAiTools(tools: ToolDef[]) {
   return tools.map((t) => ({
     type: 'function' as const,
     function: {
@@ -174,13 +162,12 @@ function parseArgs(raw: string | undefined): Record<string, unknown> {
   }
 }
 
-export class GroqProvider implements LlmProvider {
-  readonly engine = 'groq' as const;
+export class GeminiProvider implements LlmProvider {
+  readonly engine = 'gemini' as const;
   readonly model: string;
   readonly effort: string;
 
   /** Flipped off permanently if the model rejects the feature. See the header. */
-  private supportsReasoning = true;
   private supportsJsonSchema = true;
 
   /** Null until the first response tells us what this account actually has. */
@@ -199,10 +186,10 @@ export class GroqProvider implements LlmProvider {
   }
 
   session(system: string, user: string, tools: ToolDef[]): LlmSession {
-    return new GroqSession(this, [
+    return new OpenAiSession(this, [
       { role: 'system', content: system },
       { role: 'user', content: user },
-    ], toGroqTools(tools));
+    ], toOpenAiTools(tools));
   }
 
   async json(system: string, user: string, schema: Record<string, unknown>): Promise<unknown> {
@@ -244,14 +231,9 @@ export class GroqProvider implements LlmProvider {
     for (let attempt = 0; attempt < RETRY.attempts; attempt++) {
       const payload: Record<string, unknown> = {
         model: this.model,
-        max_completion_tokens: maxCompletion,
+        max_tokens: maxCompletion,
         ...body,
       };
-      if (mode === 'chat' && this.supportsReasoning) {
-        payload.reasoning_effort = toReasoningEffort(this.effort);
-        payload.reasoning_format = 'parsed';
-      }
-
       // Live dispatch decisions fail fast, because the queue is waiting and the
       // Reasoner answers immediately. The reflection pass is human-initiated,
       // runs behind a spinner and has no equally good substitute, so it is
@@ -270,7 +252,7 @@ export class GroqProvider implements LlmProvider {
         });
       } catch (err) {
         // Network-level failure. Worth one more try, then give up to the Reasoner.
-        lastError = new Error(`Groq request failed: ${err instanceof Error ? err.message : String(err)}`);
+        lastError = new Error(`Gemini request failed: ${err instanceof Error ? err.message : String(err)}`);
         await sleep(RETRY.baseDelayMs * (attempt + 1));
         continue;
       }
@@ -309,23 +291,23 @@ export class GroqProvider implements LlmProvider {
         // operator, so the note has to say which one was hit. Slowing the world
         // down does nothing for a spent daily allowance.
         const daily = /per day|\bTPD\b|tokens per day/i.test(text);
-        throw new GroqRateLimitError(
+        throw new GeminiRateLimitError(
           daily
-            ? `Groq daily token allowance is spent (${errorMessage(text)}). It resets in `
+            ? `Gemini daily quota is spent (${errorMessage(text)}). It resets in `
               + `${Math.ceil(wait / 60_000)} min. Slowing the simulation will not help; this is a `
-              + 'per-day cap. Upgrade the Groq tier, or keep running on the Reasoner, which is fully functional.'
-            : `Groq per-minute rate limit reached (${errorMessage(text)}). It refills in `
+              + 'per-day cap. Raise the quota in Google AI Studio, or keep running on the Reasoner, which is fully functional.'
+            : `Gemini per-minute rate limit reached (${errorMessage(text)}). It refills in `
               + `${Math.ceil(wait / 1000)}s. Lower the simulation speed to keep the hosted model in the loop.`,
           wait,
         );
       }
 
-      lastError = new Error(`Groq ${res.status}: ${errorMessage(text)}`);
+      lastError = new Error(`Gemini ${res.status}: ${errorMessage(text)}`);
       if (!isRetryable(res.status)) throw lastError;
       await sleep(RETRY.baseDelayMs * 2 ** attempt);
     }
 
-    throw lastError ?? new Error('Groq request failed after retries.');
+    throw lastError ?? new Error('Gemini request failed after retries.');
   }
 
   /**
@@ -345,8 +327,8 @@ export class GroqProvider implements LlmProvider {
       this.budget = null;
       return;
     }
-    throw new GroqRateLimitError(
-      `Groq token budget for this minute is spent (${b.remaining} left, this call needs about ${estimate}). ` +
+    throw new GeminiRateLimitError(
+      `Gemini token budget for this minute is spent (${b.remaining} left, this call needs about ${estimate}). ` +
       `It refills in ${Math.ceil(remainingMs / 1000)}s. Lower the simulation speed to keep the hosted model in the loop.`,
       remainingMs,
     );
@@ -362,12 +344,8 @@ export class GroqProvider implements LlmProvider {
   /** Returns true if a capability was switched off and the call is worth retrying. */
   private downgrade(errorText: string, mode: 'chat' | 'json'): boolean {
     const t = errorText.toLowerCase();
-    if (mode === 'chat' && this.supportsReasoning && t.includes('reasoning')) {
-      this.supportsReasoning = false;
-      return true;
-    }
     if (mode === 'json' && this.supportsJsonSchema
-      && (t.includes('json_schema') || t.includes('response_format'))) {
+      && (t.includes('json_schema') || t.includes('response_format') || t.includes('schema'))) {
       this.supportsJsonSchema = false;
       return true;
     }
@@ -375,11 +353,11 @@ export class GroqProvider implements LlmProvider {
   }
 }
 
-class GroqSession implements LlmSession {
+class OpenAiSession implements LlmSession {
   constructor(
-    private provider: GroqProvider,
+    private provider: GeminiProvider,
     private messages: ChatMessage[],
-    private tools: ReturnType<typeof toGroqTools>,
+    private tools: ReturnType<typeof toOpenAiTools>,
   ) {}
 
   async next(): Promise<LlmTurn> {
@@ -417,7 +395,7 @@ class GroqSession implements LlmSession {
     });
 
     return {
-      reasoning: msg.reasoning ? [msg.reasoning] : [],
+      reasoning: [msg.reasoning, msg.reasoning_content].filter((r): r is string => Boolean(r)),
       text: msg.content ?? '',
       toolCalls,
       usage: {
@@ -425,7 +403,7 @@ class GroqSession implements LlmSession {
         out: res.usage?.completion_tokens ?? 0,
         cacheRead: 0,
       },
-      refused: REFUSAL_REASONS.has(choice?.finish_reason ?? ''),
+      refused: REFUSAL_REASONS.has((choice?.finish_reason ?? '').toLowerCase()),
     };
   }
 
@@ -441,7 +419,7 @@ class GroqSession implements LlmSession {
   }
 }
 
-/** Pull the human-readable line out of Groq's error envelope. */
+/** Pull the human-readable line out of the error envelope. */
 function errorMessage(body: string): string {
   try {
     const parsed = JSON.parse(body) as { error?: { message?: string } };

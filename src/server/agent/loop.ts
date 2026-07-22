@@ -53,12 +53,12 @@ function worthTheBudget(type: Parameters<typeof isLifeSafety>[0]): boolean {
  *
  * The agentic loop is the better design when tokens are cheap: letting the agent
  * choose what to check is real behaviour, and the trace of it is worth watching.
- * It is the wrong design against a hard per-minute token budget, because the
- * fixed prompt is re-sent on every turn. On Groq's free tier a two-turn decision
- * costs more than an entire minute's allowance, so it can never complete, and
- * the tokens are spent anyway on a call that ends in a fallback.
+ * It is the wrong design against a metered free tier, because the fixed prompt is
+ * re-sent on every turn. Measured against one, a two-turn decision cost more than
+ * an entire minute's allowance, so it could never complete, and the tokens were
+ * spent anyway on a call that ended in a fallback.
  *
- * So under a metered window the loop inverts: all six evidence tools run locally
+ * So by default the loop inverts: all six evidence tools run locally
  * (they are deterministic and free), their results go into the prompt, the six
  * tool schemas come *out* of the request, and the model is asked for the one
  * thing only it can give, which is the judgment. That is a single call at around

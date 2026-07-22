@@ -15,7 +15,7 @@ import type {
   CalibrationCell, EngineKind, EventType, Incident, PlaybookProposal, PlaybookRule,
   Priority, RuleTrigger, SimTime,
 } from '../../shared/types';
-import { EVENT_LABELS } from '../../shared/types';
+import { ENGINE_LABELS, EVENT_LABELS } from '../../shared/types';
 import type { Memory, WorldState } from '../contracts';
 import { activeProvider } from './index';
 
@@ -91,7 +91,7 @@ function evidenceFor(incidents: Incident[], cell: CalibrationCell, limit = 4): s
 }
 
 /**
- * The deterministic path. Also the fallback when Claude is unavailable, and the
+ * The deterministic path. Also the fallback when the hosted model is unavailable, and the
  * path the eval harness uses so warm-up stays reproducible.
  */
 function statisticalProposal(args: ReflectionArgs): PlaybookProposal {
@@ -374,7 +374,7 @@ export async function runReflection(args: ReflectionArgs): Promise<PlaybookPropo
     const why = err instanceof Error ? err.message : String(err);
     return {
       ...fallback,
-      summary: `${fallback.summary} (The ${provider.engine === 'claude' ? 'Claude' : 'Groq'} reflection pass was `
+      summary: `${fallback.summary} (The ${ENGINE_LABELS[provider.engine]} reflection pass was `
         + `unavailable, so this is the statistical pass instead: ${why})`,
     };
   }

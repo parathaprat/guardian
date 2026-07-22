@@ -35,40 +35,35 @@ That's it. No database, no Docker, no external services.
 > I made this choice deliberately: a reviewer who can't get a key still has to be
 > able to evaluate the work.
 
-### Two providers, one seam
+### The judgment layer
 
-Set either key. `GROQ_API_KEY` runs the judgment layer on Groq
-(`llama-3.3-70b-versatile`, free tier, roughly 1.7s a decision),
-`ANTHROPIC_API_KEY` runs it on Claude Opus 4.8 with adaptive thinking.
-`SENTRY_PROVIDER` forces one when both are present.
+`GEMINI_API_KEY` runs it on **Gemini 2.5 Flash**. Get a free key at
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey): sign in with a
+Google account, click *Create API key*, paste it into `.env`. No billing details
+and no credit card.
 
-They are genuinely interchangeable: the tools, the prompt, the agentic loop and
-the trace format live in [`loop.ts`](src/server/agent/loop.ts) and are shared,
-and each vendor supplies only a `LlmProvider`. That is not framework-building for
-its own sake. If the measured learning gain holds across two unrelated model
-families, the gain is coming from the Bayesian memory rather than from one
-vendor's quirks, which is the claim this whole repo exists to support.
+Gemini is reached through its OpenAI-compatible endpoint over plain `fetch`, so
+the judgment layer is one file and no SDK. Everything vendor-neutral (the tools,
+the prompt, the loop, the `TraceStep` format) lives behind a `LlmProvider`
+interface in [`provider.ts`](src/server/agent/provider.ts), which is what lets
+the eval hold the judgment engine constant and vary only memory.
 
-> **On Groq's free tier**, the token allowance is the binding constraint, and
-> knowing exactly how it binds is what made it workable. The window is 12,000
-> tokens a minute and Groq charges the *requested* completion budget, not what
-> the model produces. A decision costs about 5,700 tokens. At 4x speed, 83% of
-> decisions land on the hosted model at a 1.7s median; at 1x, effectively all of
-> them. 64x will outrun any free tier.
+> **A free tier is a design constraint, not a caveat.** A metered endpoint bills
+> the *requested* completion budget rather than what the model produces, so
+> unused headroom is paid for in throughput. Three things follow, all in the code:
 >
-> Three things got it there, all in the code rather than in a caveat:
->
-> - **One-shot evidence.** The fixed prompt is re-sent on every turn of an
->   agentic loop, so a two-turn decision cost more than a whole minute's
->   allowance and could never complete. Against a metered provider the loop
->   inverts: the six evidence tools run locally, their results go into the
+> - **One-shot evidence.** A multi-turn agentic loop re-sends the whole prompt
+>   every turn, which roughly triples the cost of a decision for no better
+>   answer. So the six evidence tools run locally, their results go into the
 >   prompt, their schemas come out of the request, and the model is asked once
->   for the judgment. Same trace, roughly 60% of the tokens.
+>   for the judgment. The trace is identical; the agent just does not pick its
+>   own evidence.
 > - **Budget-aware triage.** When the window is nearly spent, the remaining
 >   tokens go to life-safety and high-severity alarms. A robot-obstruction alert
 >   at 3am does not need a large language model; a person-down does.
 > - **Honest attribution.** Each incident records the engine that actually
->   decided it, so a fallback is never disguised as a hosted decision.
+>   decided it, so a rate-limited fallback is never disguised as a hosted
+>   decision.
 
 ```bash
 npm run verify            # typecheck + the learning claim across 20 worlds
@@ -199,8 +194,8 @@ WORLD SIMULATOR (hidden ground truth)
       ▼
 EVIDENCE ASSEMBLY  6 tools over 4 memory channels → EvidenceRef[]
       ▼
-JUDGMENT           Groq or Claude, behind one provider seam
-                   ──or── deterministic Reasoner, no key required
+JUDGMENT           Gemini 2.5 Flash  ──or──  deterministic Reasoner
+                                             (no key required)
       ▼
 ACTION             dispatch · escalate · monitor · suppress
       ▼
@@ -227,7 +222,8 @@ TypeScript end to end. Node + Express + SSE on the server; React 19 + Vite on th
 client. No database, because the domain *is* a log and replay is a first-class
 feature, so it uses append-only JSONL, no state library (~120 lines on `useSyncExternalStore`), no
 chart library (hand-rolled SVG, so the palette could be validated rather than
-inherited). Total dependency list: the Anthropic SDK, Express, React, Vite.
+inherited), and no model SDK (Gemini is one `fetch` against its
+OpenAI-compatible endpoint). Total dependency list: Express, React, Vite.
 
 ## Verification
 

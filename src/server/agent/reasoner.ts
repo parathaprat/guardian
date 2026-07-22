@@ -3,7 +3,7 @@
  *
  * This is not a stub. It is the engine the eval harness scores (fast, free,
  * reproducible) and the engine the whole product falls back to when no API key
- * is present. It runs the *same* evidence tools as the Claude agent, in a fixed
+ * is present. It runs the *same* evidence tools as the hosted agent, in a fixed
  * order, then applies an explicit expected-cost policy.
  *
  * Because it and the hosted engines share evidence assembly, an A/B run that holds the
