@@ -1,6 +1,10 @@
 /* Primitives. Everything sharp-cornered, hairline-bordered, token-coloured. */
 
 .ui-panel { display: flex; flex-direction: column; min-height: 0; }
+/* The head keeps its intrinsic height. Left shrinkable, a head that wrapped to
+   two rows got squeezed back to one row's worth of box and the body scrolled
+   over the top of its own filter control. */
+.ui-panel > .panel-head { flex: none; }
 .ui-panel > .panel-body { flex: 1 1 auto; min-height: 0; }
 .ui-panel-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ui-panel-title {
@@ -9,6 +13,7 @@
   letter-spacing: var(--tracking-tight);
   text-transform: uppercase;
   line-height: 1.1;
+  white-space: nowrap;
 }
 
 /* ── Empty state ────────────────────────────────────────────────────────── */

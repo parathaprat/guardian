@@ -1,15 +1,21 @@
+/* Both side columns are sized from the viewport rather than pinned, so a 13"
+   laptop and a 27" display get proportionate rails instead of the same two
+   fixed slabs with all the slack dumped into the reasoning column. */
 .dispatch {
+  --feed-w: clamp(264px, 20vw, 330px);
+  --queue-w: clamp(330px, 26vw, 430px);
+
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 296px 372px minmax(0, 1fr);
+  grid-template-columns: var(--feed-w) var(--queue-w) minmax(0, 1fr);
   gap: var(--hair);
   background: var(--line);
   overflow: hidden;
 }
 
 /* Ingest collapsed: the reasoning column takes the room back. */
-.dispatch.is-slim { grid-template-columns: 30px 372px minmax(0, 1fr); }
+.dispatch.is-slim { grid-template-columns: 30px var(--queue-w) minmax(0, 1fr); }
 
 .dispatch > .panel { border: none; min-height: 0; }
 .dispatch-right {
@@ -21,11 +27,6 @@
   min-width: 0;
 }
 
-@media (max-width: 1280px) {
-  .dispatch { grid-template-columns: 250px 320px minmax(0, 1fr); }
-  .dispatch.is-slim { grid-template-columns: 30px 320px minmax(0, 1fr); }
-}
-
 /* On a laptop the vertical budget is the scarce one and the reasoning column is
    what the operator reads, so the map gives up its share first. It keeps a hard
    floor: below about 200px the zone nodes start colliding whatever we do to the
@@ -33,10 +34,18 @@
 @media (max-height: 900px) {
   .dispatch-right { grid-template-rows: minmax(200px, 26%) minmax(0, 1fr); }
 }
+/* Stacked. Every pane keeps its own scroll, so the rows are shares of the
+   viewport rather than fixed heights: at 260px of queue on a 700px window the
+   decision pane was left with about 150px, which is not enough to read one. */
 @media (max-width: 1040px) {
   .dispatch,
-  .dispatch.is-slim { grid-template-columns: 1fr; grid-template-rows: auto 260px 1fr; }
-  .dispatch-right { grid-template-rows: 180px 1fr; }
+  .dispatch.is-slim {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(140px, 24%) minmax(0, 1fr);
+  }
+  /* The map keeps the same ~200px floor it has on the wide layout. Below that
+     the zone labels start landing on top of their own nodes. */
+  .dispatch-right { grid-template-rows: minmax(210px, 34%) minmax(0, 1fr); }
 }
 
 /* ── Feed ───────────────────────────────────────────────────────────────── */
@@ -163,11 +172,34 @@
 
 /* A flex column so the action bar can take `margin-top: auto`: when an incident
    is short it settles on the floor of the panel instead of floating mid-air
-   with dead space under it, and it still sticks once content overflows. */
+   with dead space under it, and it still sticks once content overflows.
+
+   `--gut` is the one knob that keeps this column readable at every width. Past
+   about 1060px the rationale stops getting wider and the extra room becomes
+   margin instead: on a 27" display the old panel ran 180 characters to the
+   line, roughly twice what anyone reads without losing their place. The
+   section rules stay full bleed so the panel still reads as one column rather
+   than a stack of floating cards. */
+.dispatch-detail { --gut: max(var(--s5), calc((100% - 1060px) / 2)); }
+.dispatch-detail > .panel-head { padding-inline: var(--gut); }
+
 .detail-body { padding: 0; display: flex; flex-direction: column; }
 
+/* Prose gets a tighter cap than the panel does. Sentry's own sentences are the
+   slowest thing on the screen to read, and at this type size a full-width line
+   runs past 170 characters; the tables and meters beside them are scanned, not
+   read, so they keep the wider column. */
+.det-means,
+.det-instruction,
+.det-rationale,
+.det-gap,
+.truth-why,
+.truth-report,
+.trace-think,
+.trace-decide { max-width: 78ch; }
+
 /* The lead: the decision, what it means, and the order given. */
-.det-lead { padding: var(--s5) var(--s5) var(--s4); border-bottom: var(--hair) solid var(--line); }
+.det-lead { padding: var(--s5) var(--gut) var(--s4); border-bottom: var(--hair) solid var(--line); }
 .det-verdict { display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s2); }
 .det-action.is-dispatch { color: var(--accent); }
 .det-action.is-escalate { color: var(--p0); }
@@ -183,7 +215,7 @@
   line-height: 1.55;
 }
 
-.det-belief-wrap { padding: var(--s4) var(--s5); border-bottom: var(--hair) solid var(--line); }
+.det-belief-wrap { padding: var(--s4) var(--gut); border-bottom: var(--hair) solid var(--line); }
 
 .det-belief {
   display: grid;
@@ -208,12 +240,12 @@
 
 .det-gap { margin: var(--s3) 0 0; font-size: 12px; line-height: 1.55; color: var(--text-secondary); }
 
-.det-why { padding: var(--s4) var(--s5); border-bottom: var(--hair) solid var(--line); }
+.det-why { padding: var(--s4) var(--gut); border-bottom: var(--hair) solid var(--line); }
 .det-rationale { margin: 0; font-size: 13px; line-height: 1.6; }
 
-.det-thinking { display: flex; align-items: center; gap: var(--s3); padding: var(--s5); font-size: 12px; }
+.det-thinking { display: flex; align-items: center; gap: var(--s3); padding: var(--s5) var(--gut); font-size: 12px; }
 
-.det-section { padding: var(--s4) var(--s5); border-bottom: var(--hair) solid var(--line); }
+.det-section { padding: var(--s4) var(--gut); border-bottom: var(--hair) solid var(--line); }
 .det-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s3); }
 .det-section-note { font-size: 10px; color: var(--text-muted); }
 
@@ -259,7 +291,7 @@
   align-items: center;
   gap: var(--s3);
   width: 100%;
-  padding: var(--s3) var(--s5);
+  padding: var(--s3) var(--gut);
   color: var(--text-secondary);
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
@@ -275,7 +307,7 @@
 }
 .work-count { font-size: 10px; color: var(--text-muted); }
 
-.work-body { padding: 0 var(--s5) var(--s4); }
+.work-body { padding: 0 var(--gut) var(--s4); }
 
 /* ── Trace ──────────────────────────────────────────────────────────────── */
 
@@ -376,7 +408,7 @@
   align-items: center;
   gap: var(--s3);
   flex-wrap: wrap;
-  padding: var(--s4) var(--s5);
+  padding: var(--s4) var(--gut);
   background: var(--surface);
   border-top: var(--hair) solid var(--line-strong);
   box-shadow: 0 -8px 16px -12px rgba(0, 0, 0, 0.35);

@@ -286,17 +286,20 @@ button.metric-tile:hover { border-color: var(--text-primary); }
   margin-left: 2px;
 }
 
+/* Three separate facts sit on this line: the delta, what it is measured
+   against, and which direction is good. At 3px of gap, under mono tracking,
+   they read as one run of text. */
 .mt-foot {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--s2);
   flex-wrap: wrap;
 }
 
 .mt-delta {
   display: inline-flex;
   align-items: baseline;
-  gap: 3px;
+  gap: 5px;
   font-family: var(--font-mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;

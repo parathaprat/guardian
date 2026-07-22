@@ -482,8 +482,18 @@ function WorkDisclosure({ incident }: { incident: Incident }) {
   // Opening a section taller than the viewport otherwise leaves the operator
   // staring at step 9 of 13 with the decision scrolled away. Anchor to the
   // toggle instead, so expanding reads as expanding.
+  //
+  // The owning pane is scrolled directly rather than through scrollIntoView,
+  // which walks *every* ancestor scrollport up to the viewport: the console is
+  // a fixed shell, so that quietly dragged the whole page up and pushed the
+  // header off the top of the screen.
   useEffect(() => {
-    if (ui.workOpen) headRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    if (!ui.workOpen) return;
+    const head = headRef.current;
+    const pane = head?.closest<HTMLElement>('.scroll');
+    if (!head || !pane) return;
+    const top = head.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop;
+    pane.scrollTo({ top, behavior: 'smooth' });
   }, [ui.workOpen]);
 
   if (n === 0 && !live) return null;

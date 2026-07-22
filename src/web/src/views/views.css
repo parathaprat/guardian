@@ -7,13 +7,17 @@
   padding: 0 0 var(--s8);
 }
 
+/* Same gutter idea as the dispatch column: the surfaces stay full bleed, the
+   content stops spreading once there is more width than a page needs. */
+.view { --gut: max(var(--s6), calc((100% - 1560px) / 2)); }
+
 .view-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--s6);
   flex-wrap: wrap;
-  padding: var(--s6) var(--s6) var(--s5);
+  padding: var(--s6) var(--gut) var(--s5);
   background: var(--surface);
   border-bottom: var(--hair) solid var(--line);
 }
@@ -40,7 +44,7 @@
 }
 .stat-num.is-accent { color: var(--accent); }
 
-.view-section { padding: var(--s6) var(--s6) 0; }
+.view-section { padding: var(--s6) var(--gut) 0; }
 
 .view-section-head {
   display: flex;

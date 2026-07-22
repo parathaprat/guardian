@@ -9,6 +9,13 @@
 
 html, body, #root { height: 100%; }
 
+/* The shell is fixed and the panes scroll inside it, so the document itself
+   must never scroll. `clip` rather than `hidden`: hidden still leaves a scroll
+   container that script can move, and opening the working trace calls
+   scrollIntoView, which walks every ancestor scrollport and was dragging the
+   whole console up by 105px with the header off screen and no way back. */
+html, body { overflow: clip; }
+
 body {
   margin: 0;
   background: var(--surface-sunken);
@@ -92,11 +99,15 @@ a { color: inherit; text-decoration: none; }
   border-radius: var(--radius);
 }
 
+/* Wraps rather than crushes. A panel head is a title plus whatever controls
+   belong to it, and in a 330px rail those two do not always fit on one line;
+   the title used to break mid-phrase and shunt into the control beside it. */
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s3);
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
   padding: var(--s3) var(--s4);
   border-bottom: var(--hair) solid var(--line);
   min-height: 40px;

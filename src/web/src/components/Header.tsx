@@ -250,11 +250,11 @@ function SeedField({ seed, onCommit }: { seed: number | null; onCommit: (seed: n
 function EnginePill({ engine }: { engine: EngineStatus | null }) {
   const kind = engine?.engine ?? 'reasoner';
   const hosted = engine !== null && kind !== 'reasoner';
-  const text = engine === null
-    ? 'Engine ·,'
-    : hosted
-      ? `${ENGINE_LABELS[kind]} · ${prettyModel(engine.model)}`
-      : 'Reasoner · Local';
+  // Vendor and model are separate spans so a narrow header can drop the model
+  // without losing which engine is answering. The full string stays in the
+  // accessible name and in the popover below either way.
+  const vendor = engine === null ? 'Engine' : hosted ? ENGINE_LABELS[kind] : 'Reasoner';
+  const detail = engine === null ? '' : hosted ? prettyModel(engine.model) : 'Local';
 
   return (
     <div className="hdr-engine">
@@ -262,10 +262,11 @@ function EnginePill({ engine }: { engine: EngineStatus | null }) {
         type="button"
         className="hdr-engine-btn"
         data-engine={kind}
-        aria-label={`Decision engine: ${text}`}
+        aria-label={`Decision engine: ${vendor}${detail ? ` ${detail}` : ''}`}
       >
         {engine?.note && <span className="hdr-engine-warn" aria-hidden="true" />}
-        {text}
+        <span>{vendor}</span>
+        {detail && <span className="hdr-engine-model" aria-hidden="true">· {detail}</span>}
       </button>
       <div className="hdr-pop" role="tooltip">
         <div className="label hdr-pop-head">Decision engine</div>

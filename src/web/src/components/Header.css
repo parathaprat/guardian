@@ -1,14 +1,18 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Header, the Calvis nav, adapted to an ops console.
-   Three-track grid so the tab bar sits on the true optical centre regardless
-   of how wide the left and right clusters grow.
+
+   Nav sits next to the wordmark rather than on the page's optical centre.
+   True centring needs 2 × the widest cluster plus the tab bar, which is about
+   1650px here: every laptop fell short, and the centre track had nowhere to go
+   but under the status cluster. Reading order left to right is now brand, then
+   where you are, then what the system is doing, and the clusters can never
+   collide because none of them shrink and the free space sits between them.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .hdr {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
   align-items: center;
-  gap: var(--s4);
+  gap: var(--s2) var(--s6);
   height: var(--header-h);
   padding: 0 var(--s4) 0 var(--s5);
   background: var(--surface);
@@ -19,6 +23,7 @@
 /* ── Left: wordmark ─────────────────────────────────────────────────────── */
 
 .hdr-left {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--s4);
@@ -59,13 +64,18 @@
 .hdr-name { color: var(--text-primary); }
 .hdr-desc { font-size: 9px; }
 
-/* ── Centre: tabs ───────────────────────────────────────────────────────── */
+/* ── Nav ────────────────────────────────────────────────────────────────── */
 
+/* `margin-right: auto` is what pins the status cluster to the right edge, and
+   it is also the reason nothing can overlap: free space is absorbed by a
+   margin, never by an item shrinking under its content. */
 .hdr-tabs {
+  flex: none;
   display: flex;
   align-items: stretch;
-  height: 100%;
+  align-self: stretch;
   gap: var(--s5);
+  margin-right: auto;
 }
 
 .hdr-tab {
@@ -135,17 +145,23 @@
 /* ── Right: clock, transport, engine, theme ─────────────────────────────── */
 
 .hdr-right {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--s4);
-  min-width: 0;
+  margin-left: auto;
 }
 
+/* Every readout in here is a fixed string of known width. None of them may
+   shrink or wrap: a clock that reflows to three lines is how the old header
+   escaped its own row. */
 .hdr-clock {
+  flex: none;
   display: flex;
   flex-direction: column;
   gap: 3px;
+  white-space: nowrap;
 }
 .hdr-clock-top {
   display: flex;
@@ -174,6 +190,7 @@
 .hdr-clock-t { color: var(--text-primary); }
 
 .hdr-transport {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--s3);
@@ -209,6 +226,7 @@
 .hdr-seg-b:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .hdr-seed {
+  flex: none;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -265,6 +283,7 @@
   flex: none;
   background: var(--status-warn);
 }
+.hdr-engine-model { opacity: 0.85; }
 
 .hdr-pop {
   position: absolute;
@@ -325,49 +344,50 @@
 }
 
 /* ── Narrow displays: shed the least load-bearing chrome first ──────────────
-   The breakpoints below are set from what the three clusters actually measure,
-   not from round numbers. The earlier set started at 1440, which a 14" MacBook
-   (2940 physical, 1470 CSS) clears by 30px while still needing ~80px more than
-   it has: the right cluster overflowed its track and painted over the tab bar.
-   Anything that can collide is now gone before it can.                        */
+   Each step below is the width at which the previous step's layout stops
+   having slack, read off screenshots at 2560 / 1920 / 1600 / 1470 / 1280 /
+   1150 / 1024 / 900, not guessed from round numbers. Order is by how much the
+   operator loses: a strapline first, the seed last before the nav rewraps. */
 
-@media (max-width: 1680px) {
+@media (max-width: 1560px) {
   .hdr-desc { display: none; }
+}
+
+@media (max-width: 1400px) {
+  .hdr { gap: var(--s2) var(--s5); padding-left: var(--s4); }
+  .hdr-right { gap: var(--s3); }
   .hdr-tabs { gap: var(--s4); }
 }
 
-@media (max-width: 1520px) {
+@media (max-width: 1280px) {
   .hdr-seed { display: none; }
-  .hdr { padding-left: var(--s4); }
-  .hdr-right { gap: var(--s3); }
+  .hdr-clock-d { display: none; }
 }
 
-@media (max-width: 1360px) {
-  .hdr-clock-d { display: none; }
+@media (max-width: 1140px) {
+  /* The product block is the last decorative thing standing. */
+  .hdr-product, .hdr-left .hdr-rule { display: none; }
   .hdr-seg-b { min-width: 26px; padding: 0 4px; }
 }
 
-@media (max-width: 1220px) {
-  /* The product block is the last decorative thing standing. */
-  .hdr-product, .hdr-left .hdr-rule { display: none; }
+@media (max-width: 1000px) {
+  /* Which engine is answering still matters; which checkpoint does not. */
+  .hdr-engine-model { display: none; }
 }
 
-/* Below this nothing sheds gracefully any further, so the tab bar takes its own
+/* Below this nothing sheds gracefully any further, so the nav takes its own
    row. A console that wraps is readable; a console that overlaps is not. */
-@media (max-width: 1080px) {
+@media (max-width: 920px) {
   .hdr {
-    grid-template-columns: 1fr auto;
-    grid-template-rows: var(--header-h) auto;
+    flex-wrap: wrap;
     height: auto;
-    padding-bottom: var(--s2);
+    padding: var(--s3) var(--s4);
   }
   .hdr-tabs {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    height: auto;
-    justify-content: flex-start;
-    gap: var(--s5);
-    padding-top: var(--s1);
+    order: 3;
+    flex-basis: 100%;
+    align-self: auto;
+    margin-right: 0;
   }
-  .hdr-tab::after { bottom: -6px; }
+  .hdr-tab::after { bottom: -5px; }
 }
