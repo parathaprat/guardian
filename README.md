@@ -196,7 +196,9 @@ overrides, `e` shows Sentry's working, `f` shows the raw feed, `1–4` switch vi
 
 ### Things worth trying
 
-1. Let it run a minute at 64×, then open **MEMORY**. Dock D-3 overnight motion
+1. Let it run a minute at 64× (it starts at 4×, which is what the free tier
+   keeps up with; 64× is for filling the memory fast), then open **MEMORY**.
+   Dock D-3 overnight motion
    will have learned itself into a nuisance pattern (there's an HVAC vent there;
    the agent is not told).
 2. **Override** a decision on DISPATCH, then **RUN REFLECTION NOW**. Overrides are

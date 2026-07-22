@@ -55,11 +55,13 @@ export class OpsEngine {
   private subscribers = new Set<(e: ServerEvent) => void>();
   private timer: NodeJS.Timeout | null = null;
   /**
-   * 64× puts roughly one sim-hour into a real minute, which lands the event rate
-   * at ~5–15/min, dense enough that the console feels live, slow enough that an
-   * operator can actually read a decision before the next one arrives.
+   * 4× is the fastest default the hosted engine's free tier can actually keep
+   * up with: every alarm is one Gemini request, and 64× was generating them
+   * faster than the quota refills, so a console left open would spend the day's
+   * budget on alarms nobody was watching. 64× is still one click away when the
+   * point is to build up memory quickly.
    */
-  private speed = 64;
+  private speed = 4;
   private seed: number;
 
   private queue: SeededEvent[] = [];

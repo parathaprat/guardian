@@ -316,6 +316,8 @@
 
 .skills { display: flex; gap: 3px; flex-wrap: wrap; max-width: 210px; }
 .cell-meter { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; }
+/* A number the agent assumed rather than measured. */
+.cell-meter.is-prior { opacity: 0.42; }
 .roster-meter { width: 48px; }
 .roster-explore { margin-left: 6px; }
 

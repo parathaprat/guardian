@@ -67,8 +67,10 @@ export default function Roster() {
               <thead>
                 <tr>
                   <th>Guard</th><th>Site</th><th>Shift</th><th>Skills</th><th>Status</th>
-                  <th className="r">Accept rate</th><th className="r">Median response</th>
-                  <th className="r">Resolve</th><th className="r">n</th>
+                  {/* Mean, not median: responders.ts keeps Welford running
+                      stats, and the mean is the term that feeds the score. */}
+                  <th className="r">Accept rate</th><th className="r">Mean response</th>
+                  <th className="r">Resolved</th><th className="r">Dispatches</th>
                 </tr>
               </thead>
               <tbody>
@@ -95,9 +97,16 @@ export default function Roster() {
                         </div>
                       </td>
                       <td><ResponderStatusDot status={g.status} /></td>
+                      {/* Before the first offer this is the 2/1 prior, not an
+                          observation. It still ranks, so it is shown, but it is
+                          dimmed: 67% next to a hard 89% otherwise reads as a
+                          measurement nobody took. */}
                       <td className="r">
                         {m ? (
-                          <div className="cell-meter">
+                          <div
+                            className={`cell-meter${m.dispatches === 0 ? ' is-prior' : ''}`}
+                            title={m.dispatches === 0 ? 'Prior only, no offers observed yet' : undefined}
+                          >
                             <ConfidenceBar value={m.pAccept} className="roster-meter" />
                             <span className="mono">{fmtPct(m.pAccept)}</span>
                           </div>
@@ -116,6 +125,16 @@ export default function Roster() {
             </table>
           )}
         </Panel>
+        <p className="view-caption">
+          <b>Accept rate</b> is the share of dispatch offers this responder took, as a Beta
+          posterior seeded 2/1 so an unknown responder starts optimistic rather than at zero.
+          <b> Mean response</b> is dispatch to on-scene, averaged over arrivals actually observed.
+          <b> Resolved</b> is the share of their dispatches that closed correctly.
+          <b> Dispatches</b> is how many offers the number rests on; under five the model is still
+          <i> exploring</i>, so ranking samples from the posterior instead of trusting its mean.
+          None of this is read from the roster file: every guard has hidden traits the agent is
+          never shown, and these are its estimates of them from revealed outcomes.
+        </p>
       </section>
 
       <section className="view-section">

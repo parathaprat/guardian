@@ -49,10 +49,10 @@ export const TOUR_STEPS: TourStep[] = [
     anchor: 'transport',
     title: 'The world is running fast',
     body:
-      'This is a simulation running at 64 times real speed, so the agent builds up experience '
-      + 'in minutes instead of months. That is too fast to work at. Press space to pause '
-      + 'whenever you want to think, or drop to 4x for a realistic pace. Nothing is lost when '
-      + 'you pause: the queue holds until you come back.',
+      'This is a simulation running at 4 times real speed, so the agent builds up experience '
+      + 'in minutes instead of months. Press space to pause whenever you want to think, or '
+      + 'push it to 64x to grow the memory quickly. Nothing is lost when you pause: the queue '
+      + 'holds until you come back.',
     keys: [['Space', 'pause and resume']],
   },
   {
