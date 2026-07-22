@@ -87,14 +87,21 @@ function toReasoningEffort(effort: string): 'low' | 'medium' | 'high' {
 }
 
 /**
- * Flash rather than Pro, deliberately.
+ * Chosen against the free tier, by measurement.
  *
- * A dispatch console is a latency surface: the operator is watching the card
- * fill in. Flash answers in a few seconds, has the most headroom on the free
- * tier, and the judgment being asked for here is a bounded one, since the
- * evidence has already been gathered and weighed before the model sees it.
+ * The free tier meters **requests per day, per model**, and the allowance is not
+ * uniform: `gemini-3.6-flash` grants 20 a day, which the console spends in about
+ * a minute. Flash-lite is the tier Google actually gives away, and it survived
+ * sustained calling where the flagship did not.
+ *
+ * It is also the better fit on the merits. A dispatch console is a latency
+ * surface, the operator is watching the card fill in, and this answers in about
+ * 1.6s against 5s for the flagship. The judgment being asked for is a bounded
+ * one, since the evidence has already been gathered and weighed before the model
+ * sees it, and in testing this model wrote a usable responder instruction and
+ * rationale where two faster siblings returned an empty instruction.
  */
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -130,6 +137,13 @@ interface TokenBudget {
   remaining: number;
   /** Wall-clock ms at which the window refills. */
   resetAt: number;
+  /**
+   * Why we stood down, in the operator's words, kept so that every subsequent
+   * refusal repeats the real reason. Without it the first accurate message is
+   * replaced by a generic per-minute one, and a spent *daily* quota ends up
+   * advising the operator to slow the simulation down, which does nothing.
+   */
+  reason?: string;
 }
 
 /** Distinguishable so the trace can say "rate limited" rather than "failed". */
@@ -139,6 +153,43 @@ export class GeminiRateLimitError extends Error {
     this.name = 'GeminiRateLimitError';
   }
 }
+
+/**
+ * What a Gemini 429 actually tells you.
+ *
+ * There are no rate-limit headers on this endpoint, so everything worth knowing
+ * is in the error body: which quota was hit, what it is worth, and how long to
+ * wait. Per-minute and per-day exhaustion need opposite responses from the
+ * operator, so it is worth the parsing.
+ */
+interface QuotaFailure {
+  perDay: boolean;
+  /** The allowance, as the API states it. */
+  limit: string | null;
+  retryMs: number | null;
+}
+
+function parseQuota(body: string): QuotaFailure {
+  const quotaId = /"quotaId"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? '';
+  const limit = /limit:\s*([\d,]+)/.exec(body)?.[1] ?? null;
+  const retry = /"retryDelay"\s*:\s*"([^"]+)"/.exec(body)?.[1]
+    ?? /retry in ([\d.]+)s/i.exec(body)?.[1];
+  return {
+    perDay: /PerDay/i.test(quotaId) || /per day/i.test(body),
+    limit,
+    retryMs: retry ? parseDuration(retry) : null,
+  };
+}
+
+/**
+ * How long to stand down after a daily quota is spent.
+ *
+ * Google's `retryDelay` on a per-day violation is a per-minute figure and
+ * retrying on it just earns another 429. Standing down properly costs nothing,
+ * because the Reasoner answers every incident meanwhile, and it stops the
+ * console generating a failed request per alarm for the rest of the day.
+ */
+const DAILY_STAND_DOWN_MS = 15 * 60_000;
 
 /** Reset windows arrive as `7.66s`, `2m59.56s`, `120ms`, or bare seconds. */
 function parseDuration(raw: string | null): number | null {
@@ -300,28 +351,27 @@ export class GeminiProvider implements LlmProvider {
       // 429 is the documented rate limit; 413 is the same limit reported as an
       // oversized request when the *requested* budget will not fit the window.
       if (res.status === 429 || res.status === 413) {
-        const wait = parseDuration(res.headers.get('retry-after'))
-          ?? parseDuration(res.headers.get('x-ratelimit-reset-tokens'))
-          ?? 60_000;
-        this.budget = { remaining: 0, resetAt: Date.now() + wait };
-        if (mode === 'json' && wait <= MAX_BUDGET_WAIT_MS && attempt < RETRY.attempts - 1) {
+        const quota = parseQuota(text);
+        const wait = quota.perDay
+          ? DAILY_STAND_DOWN_MS
+          : quota.retryMs ?? parseDuration(res.headers.get('retry-after')) ?? 60_000;
+
+        if (!quota.perDay && mode === 'json' && wait <= MAX_BUDGET_WAIT_MS && attempt < RETRY.attempts - 1) {
           await sleep(wait + 250);
           this.budget = null;
           continue;
         }
-        // Per-minute and per-day exhaustion need opposite responses from the
-        // operator, so the note has to say which one was hit. Slowing the world
-        // down does nothing for a spent daily allowance.
-        const daily = /per day|\bTPD\b|tokens per day/i.test(text);
-        throw new GeminiRateLimitError(
-          daily
-            ? `Gemini daily quota is spent (${errorMessage(text)}). It resets in `
-              + `${Math.ceil(wait / 60_000)} min. Slowing the simulation will not help; this is a `
-              + 'per-day cap. Raise the quota in Google AI Studio, or keep running on the Reasoner, which is fully functional.'
-            : `Gemini per-minute rate limit reached (${errorMessage(text)}). It refills in `
-              + `${Math.ceil(wait / 1000)}s. Lower the simulation speed to keep the hosted model in the loop.`,
-          wait,
-        );
+
+        const allowance = quota.limit ? ` The free-tier allowance for ${this.model} is ${quota.limit}.` : '';
+        const reason = quota.perDay
+          ? `Gemini's daily free-tier quota is spent.${allowance} It resets at midnight Pacific. `
+            + 'Slowing the simulation will not help, this is a per-day cap on requests. Every decision '
+            + 'now comes from the local Reasoner, which is fully functional; switch GEMINI_MODEL or '
+            + 'raise the quota in Google AI Studio to get the hosted model back.'
+          : `Gemini rate limit reached.${allowance} `
+            + 'Lower the simulation speed to keep the hosted model in the loop.';
+        this.budget = { remaining: 0, resetAt: Date.now() + wait, reason };
+        throw new GeminiRateLimitError(reason, wait);
       }
 
       lastError = new Error(`Gemini ${res.status}: ${errorMessage(text)}`);
@@ -349,9 +399,13 @@ export class GeminiProvider implements LlmProvider {
       this.budget = null;
       return;
     }
+    // Repeat the endpoint's own reason where we have it: a stood-down day and a
+    // spent minute call for different things from the operator.
     throw new GeminiRateLimitError(
-      `Gemini token budget for this minute is spent (${b.remaining} left, this call needs about ${estimate}). ` +
-      `It refills in ${Math.ceil(remainingMs / 1000)}s. Lower the simulation speed to keep the hosted model in the loop.`,
+      b.reason
+        ? `${b.reason} (Retrying in ${Math.ceil(remainingMs / 1000)}s.)`
+        : `Gemini token budget for this window is spent (${b.remaining} left, this call needs about `
+          + `${estimate}). It refills in ${Math.ceil(remainingMs / 1000)}s.`,
       remainingMs,
     );
   }

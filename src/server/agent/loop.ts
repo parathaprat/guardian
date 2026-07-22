@@ -77,6 +77,40 @@ const PREFETCH_ORDER = [
   TOOL_NAMES.responders,
 ] as const;
 
+/**
+ * Trim the long tails out of a tool result before it goes into the prompt.
+ *
+ * The evidence block was 41% of every request, and most of that was list tails
+ * nobody reads: ten ranked responders where the model picks from the top few,
+ * every adjacent zone, every past match. Ranked lists are ranked for a reason,
+ * so the tail is the cheapest thing in the request to give up. Nothing is
+ * summarised or reworded, it is truncated, the count of what was dropped stays
+ * in the prompt, and the trace inspector still shows the untruncated result.
+ */
+const LIST_CAPS: Record<string, number> = {
+  options: 5,        // ranked responders
+  matches: 3,        // precedent hits
+  rules: 3,          // matching playbook rules
+  adjacentZones: 4,
+  robotsInZone: 3,
+  guardsInZone: 3,
+  relatedEventIds: 4,
+  relatedIncidentIds: 4,
+};
+
+function compact(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(compact);
+  if (value === null || typeof value !== 'object') return value;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    const cap = LIST_CAPS[k];
+    out[k] = Array.isArray(v) && cap !== undefined && v.length > cap
+      ? [...v.slice(0, cap).map(compact), `+${v.length - cap} more, omitted`]
+      : compact(v);
+  }
+  return out;
+}
+
 /** `auto` picks one-shot for metered providers and the agentic loop otherwise. */
 function oneShotWanted(provider: LlmProvider): boolean {
   const mode = process.env.SENTRY_EVIDENCE?.trim().toLowerCase() ?? 'auto';
@@ -237,7 +271,7 @@ export class LlmAgent implements DispatchAgent {
         const out = await runTool(name, {}, ctx);
         evidence.push(...out.evidence);
         emit(mkStep('tool_result', out.label, s0, { toolName: name, toolResult: out.result }));
-        readings.push(`## ${name}\n${JSON.stringify(out.result)}`);
+        readings.push(`## ${name}\n${JSON.stringify(compact(out.result))}`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         emit(mkStep('error', `${name} failed`, s0, { toolName: name, detail: msg }));

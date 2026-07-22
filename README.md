@@ -37,7 +37,7 @@ That's it. No database, no Docker, no external services.
 
 ### The judgment layer
 
-`GEMINI_API_KEY` runs it on **Gemini 3.6 Flash**. Get a free key at
+`GEMINI_API_KEY` runs it on **Gemini 3.1 Flash Lite**. Get a free key at
 [aistudio.google.com/apikey](https://aistudio.google.com/apikey): sign in with a
 Google account, click *Create API key*, paste it into `.env`. No billing details
 and no credit card.
@@ -48,27 +48,41 @@ the prompt, the loop, the `TraceStep` format) lives behind a `LlmProvider`
 interface in [`provider.ts`](src/server/agent/provider.ts), which is what lets
 the eval hold the judgment engine constant and vary only memory.
 
-Measured on the running console at 4x: **5 of 5 decisions on the hosted model**,
-about a 5s median, no fallbacks. `SENTRY_EFFORT=low` is the default because the
-evidence is gathered, weighed and handed over before the model sees it, so a
-larger thinking budget buys latency the operator feels and little else.
+Measured on the running console, five minutes at 4x speed:
 
-> **A free tier is a design constraint, not a caveat.** A metered endpoint bills
-> the *requested* completion budget rather than what the model produces, so
-> unused headroom is paid for in throughput. Three things follow, all in the code:
->
-> - **One-shot evidence.** A multi-turn agentic loop re-sends the whole prompt
->   every turn, which roughly triples the cost of a decision for no better
->   answer. So the six evidence tools run locally, their results go into the
->   prompt, their schemas come out of the request, and the model is asked once
->   for the judgment. The trace is identical; the agent just does not pick its
->   own evidence.
-> - **Budget-aware triage.** When the window is nearly spent, the remaining
->   tokens go to life-safety and high-severity alarms. A robot-obstruction alert
->   at 3am does not need a large language model; a person-down does.
-> - **Honest attribution.** Each incident records the engine that actually
->   decided it, so a rate-limited fallback is never disguised as a hosted
->   decision.
+```
+11 of 11 decisions on the hosted model     0 fallbacks
+p50 1,726ms   p90 2,007ms                  ~4,970 tokens per decision
+```
+
+### Running inside the free tier
+
+The free tier meters **requests per day, per model**, and the allowance is not
+uniform. `gemini-3.6-flash` grants 20 a day, which this console spends in about a
+minute. Flash-lite is the tier Google actually gives away, and it is also three
+times faster on this workload, so the default is the cheap model on the merits
+rather than as a compromise.
+
+Four things follow from a metered tier, all in the code rather than in a caveat:
+
+- **One request per decision.** A multi-turn agentic loop re-sends the whole
+  prompt every turn, which triples the cost of a decision for no better answer.
+  So the six evidence tools run locally, their results go into the prompt, their
+  schemas come out of the request, and the model is asked once for the judgment.
+  The trace is identical; the agent just does not pick its own evidence.
+- **Ranked lists are truncated before they are sent.** The evidence block was 41%
+  of every request, most of it list tails nobody reads. Nothing is reworded, and
+  the count of what was dropped stays in the prompt.
+- **Budget-aware triage.** When the allowance is nearly spent, what is left goes
+  to life-safety and high-severity alarms. A robot-obstruction alert at 3am does
+  not need a large language model; a person-down does.
+- **Honest attribution.** Each incident records the engine that actually decided
+  it, so a rate-limited fallback is never disguised as a hosted decision.
+
+When the daily quota does run out, the console stands down rather than retrying
+per alarm: decisions fall to the Reasoner in about 4ms with no wasted request,
+and the header states which quota was hit, what it is worth and when it resets.
+Nothing degrades except the judgment layer, and the Reasoner is a real policy.
 
 ```bash
 npm run verify            # typecheck + the learning claim across 20 worlds

@@ -186,7 +186,7 @@ memory and it goes back to nothing, which is the point.
 
 ### The hosted judgment layer, and what a free tier taught me
 
-The judgment layer runs on **Gemini 3.6 Flash**, reached through its
+The judgment layer runs on **Gemini 3.1 Flash Lite**, reached through its
 OpenAI-compatible endpoint over plain `fetch`. Everything vendor-neutral (the
 tools, the prompt, the loop, the `TraceStep` format) sits behind an
 `LlmProvider` interface; the vendor file implements only a session that can take
@@ -203,6 +203,19 @@ dependency would have bought retries, which are twenty lines here, and cost
 control over the exact error text that reaches the trace inspector, which is the
 surface this product is about. The dependency list is now Express, React and
 Vite.
+
+**The free tier chose the model.** It meters requests per day *per model*, and
+the allowance is wildly uneven: `gemini-3.6-flash` grants 20 a day, which the
+console spends in a minute. I only learned that by reading a 429 body, because
+this endpoint sends no rate-limit headers at all and everything worth knowing is
+in the error. Flash-lite has real headroom and is three times faster on this
+workload, so the cheap model won on the merits rather than as a compromise.
+
+That also set the unit of efficiency. When the meter counts *requests*, the thing
+to optimise is requests per decision, not tokens per request. One-shot mode
+already makes that one. Trimming ranked-list tails out of the evidence block was
+worth doing anyway: 6% fewer tokens, and p90 latency fell from 7.1s to 2.0s
+because the long tail was the model reading list tails nobody needed.
 
 **Rate limits are a design constraint, not an error path.** A metered endpoint
 bills the *requested* completion budget rather than what the model produces, so
