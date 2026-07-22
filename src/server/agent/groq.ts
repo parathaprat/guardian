@@ -46,12 +46,12 @@ const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
 /**
  * Completion budgets, deliberately tight. Groq charges the *requested* budget
- * against the per-minute token meter, not the tokens actually produced, so an
- * 8k default would spend the entire free-tier allowance on headroom no dispatch
- * decision has ever needed. A `submit_decision` payload with a three-sentence
- * rationale plus reasoning measures well under a thousand tokens.
+ * against the per-minute token meter, not the tokens actually produced, so
+ * unused headroom is paid for in throughput. A measured `submit_decision`
+ * payload with a three-sentence rationale runs about 150 tokens, so 700 is
+ * already four times what the job needs.
  */
-const CHAT_MAX_TOKENS = 1200;
+const CHAT_MAX_TOKENS = 700;
 const JSON_MAX_TOKENS = 4096;
 
 /**
@@ -59,17 +59,26 @@ const JSON_MAX_TOKENS = 4096;
  * pre-gathered evidence, the terminal tool schema and the completion budget.
  * Used only to answer "is there enough left in this window to bother".
  */
-const TYPICAL_CALL_TOKENS = 6_100;   // measured: ~4,850 prompt + the completion budget
+const TYPICAL_CALL_TOKENS = 5_800;   // measured: ~5,050 prompt + the completion budget
 
 /** Longest a waiting caller will sit on a spent token window. One window plus slack. */
 const MAX_BUDGET_WAIT_MS = 70_000;
 
 /**
- * Default because it is the strongest tool-caller Groq hosts, exposes its
- * reasoning, and honours a JSON schema, which are exactly the three things this
- * product needs from a model.
+ * Chosen by measurement, not by reputation.
+ *
+ * Against the real console at 4x it completed 4 of 6 decisions where
+ * `openai/gpt-oss-120b` completed 3, because the constraint here is the token
+ * window rather than the model: llama-3.3 gets a 12,000/minute allowance instead
+ * of 8,000, and spends about 150 completion tokens on a decision rather than
+ * several hundred on reasoning first. It is also the faster of the two on the
+ * wire, at roughly two seconds per decision.
+ *
+ * The cost is that it exposes no reasoning trace, so the inspector shows tool
+ * calls, results and the decision but no "thinking" rows. On a metered free tier
+ * that is the right trade: a decision that lands beats a decision that narrates.
  */
-export const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
+export const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 /** SENTRY speaks Anthropic's five-step effort scale; Groq takes three. */
 function toReasoningEffort(effort: string): 'low' | 'medium' | 'high' {

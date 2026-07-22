@@ -205,10 +205,18 @@ control over the exact error text that reaches the trace inspector, which is the
 surface this product is about.
 
 **Rate limits are treated as a design constraint, not an error path.** Groq's
-free tier meters 8,000 tokens per minute and charges the *requested* completion
-budget against that meter, not what the model produces. I measured before
-reacting, and the measurement changed the architecture rather than a config
-value.
+free tier meters tokens per minute and charges the *requested* completion budget
+against that meter, not what the model produces. I measured before reacting, and
+the measurement changed the architecture rather than a config value.
+
+It also picked the model. `llama-3.3-70b-versatile` beat `openai/gpt-oss-120b`
+in the real console, not because it reasons better but because the binding
+constraint is the window rather than the model: a 12,000/minute allowance instead
+of 8,000, and about 150 completion tokens on a decision instead of several
+hundred spent narrating first. 83% of decisions land on it at 4x speed against
+50%, at a 1.7s median. The cost is no reasoning rows in the trace. On a metered
+free tier that is the right trade, because a decision that lands beats a decision
+that narrates.
 
 A decision under the agentic loop cost two turns at roughly 5,400 tokens each,
 because the fixed prompt is re-sent every turn. That is more than a whole

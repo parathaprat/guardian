@@ -37,9 +37,10 @@ That's it. No database, no Docker, no external services.
 
 ### Two providers, one seam
 
-Set either key. `GROQ_API_KEY` runs the judgment layer on Groq (default
-`openai/gpt-oss-120b`), `ANTHROPIC_API_KEY` runs it on Claude Opus 4.8 with
-adaptive thinking. `SENTRY_PROVIDER` forces one when both are present.
+Set either key. `GROQ_API_KEY` runs the judgment layer on Groq
+(`llama-3.3-70b-versatile`, free tier, roughly 1.7s a decision),
+`ANTHROPIC_API_KEY` runs it on Claude Opus 4.8 with adaptive thinking.
+`SENTRY_PROVIDER` forces one when both are present.
 
 They are genuinely interchangeable: the tools, the prompt, the agentic loop and
 the trace format live in [`loop.ts`](src/server/agent/loop.ts) and are shared,
@@ -48,16 +49,17 @@ its own sake. If the measured learning gain holds across two unrelated model
 families, the gain is coming from the Bayesian memory rather than from one
 vendor's quirks, which is the claim this whole repo exists to support.
 
-> **On Groq's free tier**, the token allowance is the binding constraint, and it
-> is worth knowing exactly how it binds. The window is 8,000 tokens per minute
-> and 200,000 per day, and Groq charges the *requested* completion budget, not
-> what the model produces. A decision costs about 5,900 tokens, so the practical
-> ceiling is roughly one decision a minute and about thirty a day.
+> **On Groq's free tier**, the token allowance is the binding constraint, and
+> knowing exactly how it binds is what made it workable. The window is 12,000
+> tokens a minute and Groq charges the *requested* completion budget, not what
+> the model produces. A decision costs about 5,700 tokens. At 4x speed, 83% of
+> decisions land on the hosted model at a 1.7s median; at 1x, effectively all of
+> them. 64x will outrun any free tier.
 >
-> Three things follow, all of them in the code rather than in a caveat:
+> Three things got it there, all in the code rather than in a caveat:
 >
 > - **One-shot evidence.** The fixed prompt is re-sent on every turn of an
->   agentic loop, so a two-turn decision costs more than a whole minute's
+>   agentic loop, so a two-turn decision cost more than a whole minute's
 >   allowance and could never complete. Against a metered provider the loop
 >   inverts: the six evidence tools run locally, their results go into the
 >   prompt, their schemas come out of the request, and the model is asked once
@@ -67,11 +69,6 @@ vendor's quirks, which is the claim this whole repo exists to support.
 >   at 3am does not need a large language model; a person-down does.
 > - **Honest attribution.** Each incident records the engine that actually
 >   decided it, so a fallback is never disguised as a hosted decision.
->
-> Run at 1x or 4x to keep the hosted model in the loop; 64x will outrun any free
-> tier. If you want it in the loop for every alarm, upgrade the Groq tier or set
-> `GROQ_MODEL=llama-3.3-70b-versatile`, which has a 50% larger window but exposes
-> no reasoning.
 
 ```bash
 npm run verify            # typecheck + the learning claim across 20 worlds
