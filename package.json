@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "SENTRY — an AI dispatch agent for physical security operations. Built for Calvis.",
+  "description": "SENTRY, an AI dispatch agent for physical security operations. Built for Calvis.",
   "engines": {
     "node": ">=20"
   },
