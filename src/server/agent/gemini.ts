@@ -46,34 +46,55 @@ import type { ToolDef } from './tools';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
 /**
- * Completion budgets, deliberately tight. A metered endpoint charges the
- * *requested* budget rather than the tokens actually produced, so unused
- * headroom is paid for in throughput. A measured `submit_decision` payload with
- * a three-sentence rationale runs about 150 tokens, so 700 is already four times
- * what the job needs.
+ * Completion budgets.
+ *
+ * The trap here, and it cost a debugging session: **thinking tokens count
+ * against `max_tokens`**, and they are invisible in `completion_tokens`. The
+ * decision itself is about 150 tokens, but Gemini spends 250 to 800 thinking
+ * first, varying run to run. Budget for the decision alone and the model runs
+ * out of room mid-call, and the API reports it as
+ * `MALFORMED_FUNCTION_CALL`, which reads like a schema bug and is not one.
+ *
+ * 2000 clears the observed thinking ceiling with room to spare.
  */
-const CHAT_MAX_TOKENS = 700;
-const JSON_MAX_TOKENS = 4096;
+const CHAT_MAX_TOKENS = 2000;
+const JSON_MAX_TOKENS = 6000;
 
 /**
  * What one complete decision costs: the system prompt, the incident, the
  * pre-gathered evidence, the terminal tool schema and the completion budget.
  * Used only to answer "is there enough left in this window to bother".
  */
-const TYPICAL_CALL_TOKENS = 5_800;   // measured: ~5,050 prompt + the completion budget
+const TYPICAL_CALL_TOKENS = 6_000;   // measured: ~3,600 prompt + the thinking and completion budget
 
 /** Longest a waiting caller will sit on a spent token window. One window plus slack. */
 const MAX_BUDGET_WAIT_MS = 70_000;
 
 /**
+ * SENTRY carries a five-step effort scale; Gemini takes three.
+ *
+ * `low` is the default for a live console and it is not a cost decision: at
+ * medium the model spends longer thinking for a judgment whose evidence has
+ * already been gathered, weighed and handed to it, which buys latency the
+ * operator feels and little else.
+ */
+function toReasoningEffort(effort: string): 'low' | 'medium' | 'high' {
+  switch (effort) {
+    case 'medium': return 'medium';
+    case 'high': case 'xhigh': case 'max': return 'high';
+    default: return 'low';
+  }
+}
+
+/**
  * Flash rather than Pro, deliberately.
  *
  * A dispatch console is a latency surface: the operator is watching the card
- * fill in. Flash answers in about a second, has the most headroom on the free
+ * fill in. Flash answers in a few seconds, has the most headroom on the free
  * tier, and the judgment being asked for here is a bounded one, since the
  * evidence has already been gathered and weighed before the model sees it.
  */
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -232,6 +253,7 @@ export class GeminiProvider implements LlmProvider {
       const payload: Record<string, unknown> = {
         model: this.model,
         max_tokens: maxCompletion,
+        reasoning_effort: toReasoningEffort(this.effort),
         ...body,
       };
       // Live dispatch decisions fail fast, because the queue is waiting and the
@@ -419,11 +441,19 @@ class OpenAiSession implements LlmSession {
   }
 }
 
-/** Pull the human-readable line out of the error envelope. */
+/**
+ * Pull the human-readable line out of the error envelope.
+ *
+ * Gemini sometimes wraps it in a JSON array, so `{error:{...}}` and
+ * `[{error:{...}}]` both have to unwrap or a rate limit reaches the operator as
+ * a wall of raw JSON.
+ */
 function errorMessage(body: string): string {
   try {
-    const parsed = JSON.parse(body) as { error?: { message?: string } };
-    return parsed.error?.message ?? body.slice(0, 200);
+    const parsed: unknown = JSON.parse(body);
+    const envelope = Array.isArray(parsed) ? parsed[0] : parsed;
+    const message = (envelope as { error?: { message?: string } })?.error?.message;
+    return message ?? body.slice(0, 200);
   } catch {
     return body.slice(0, 200);
   }

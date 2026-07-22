@@ -186,7 +186,7 @@ memory and it goes back to nothing, which is the point.
 
 ### The hosted judgment layer, and what a free tier taught me
 
-The judgment layer runs on **Gemini 2.5 Flash**, reached through its
+The judgment layer runs on **Gemini 3.6 Flash**, reached through its
 OpenAI-compatible endpoint over plain `fetch`. Everything vendor-neutral (the
 tools, the prompt, the loop, the `TraceStep` format) sits behind an
 `LlmProvider` interface; the vendor file implements only a session that can take
@@ -224,6 +224,25 @@ and I would rather name it than bury it: the agent no longer chooses its own
 evidence. What the operator sees is unchanged, since the trace still shows every
 tool call, every result, the reasoning and the decision. `SENTRY_EVIDENCE=agentic`
 puts the multi-turn loop back for anyone who wants to watch it.
+
+**The bug worth writing down**, because it is the kind that wastes an afternoon
+and reads like something else entirely. Tool calls started coming back as
+`MALFORMED_FUNCTION_CALL`, intermittently, on a schema that had been working
+against another vendor for days. It reads like a schema-dialect problem, and I
+started bisecting the schema.
+
+It was not the schema. **Thinking tokens count against `max_tokens`, and they do
+not appear in `completion_tokens`.** The arithmetic gave it away: prompt 3,578
+plus visible output 26, against a reported total of 4,946. Something had spent
+1,342 tokens I could not see. The budget was set to 700, tuned for a decision
+that measures about 150 tokens, so the model was thinking its way past the
+ceiling and getting truncated mid-call. The API reports that truncation as a
+malformed call.
+
+The fix is one constant, but the lesson is the one I would want a reviewer to
+take: the error message named the symptom and not the cause, and the arithmetic
+in the usage block was the only thing that told the truth. The budget is now 2000
+with a comment explaining why, so nobody trims it back as dead headroom.
 
 Two smaller pieces around it. The provider reads whatever budget the endpoint
 reports in its response headers and declines locally when the next call cannot

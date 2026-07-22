@@ -37,7 +37,7 @@ That's it. No database, no Docker, no external services.
 
 ### The judgment layer
 
-`GEMINI_API_KEY` runs it on **Gemini 2.5 Flash**. Get a free key at
+`GEMINI_API_KEY` runs it on **Gemini 3.6 Flash**. Get a free key at
 [aistudio.google.com/apikey](https://aistudio.google.com/apikey): sign in with a
 Google account, click *Create API key*, paste it into `.env`. No billing details
 and no credit card.
@@ -47,6 +47,11 @@ the judgment layer is one file and no SDK. Everything vendor-neutral (the tools,
 the prompt, the loop, the `TraceStep` format) lives behind a `LlmProvider`
 interface in [`provider.ts`](src/server/agent/provider.ts), which is what lets
 the eval hold the judgment engine constant and vary only memory.
+
+Measured on the running console at 4x: **5 of 5 decisions on the hosted model**,
+about a 5s median, no fallbacks. `SENTRY_EFFORT=low` is the default because the
+evidence is gathered, weighed and handed over before the model sees it, so a
+larger thinking budget buys latency the operator feels and little else.
 
 > **A free tier is a design constraint, not a caveat.** A metered endpoint bills
 > the *requested* completion budget rather than what the model produces, so
