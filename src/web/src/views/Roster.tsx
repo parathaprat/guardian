@@ -99,18 +99,24 @@ export default function Roster() {
                         </div>
                       </td>
                       <td><ResponderStatusDot status={g.status} /></td>
-                      {/* Before any offers this is the 2/1 prior, not an observation;
-                          dimmed so it doesn't read as a real measurement. */}
+                      {/* Before any offers this is the 2/1 prior, not an observation. A
+                          bar implies a measured share, so zero dispatches gets no bar at
+                          all, just the number labelled as what it is. */}
                       <td className="r">
-                        {m ? (
-                          <div
-                            className={`cell-meter${m.dispatches === 0 ? ' is-prior' : ''}`}
-                            title={m.dispatches === 0 ? 'Prior only, no offers observed yet' : undefined}
-                          >
-                            <ConfidenceBar value={m.pAccept} className="roster-meter" />
-                            <span className="mono">{fmtPct(m.pAccept)}</span>
-                          </div>
-                        ) : <span className="muted">-</span>}
+                        {!m ? <span className="muted">-</span>
+                          : m.dispatches === 0 ? (
+                            <span
+                              className="roster-prior mono"
+                              title="Beta(2,1) prior: an unknown responder starts optimistic rather than at zero. No offers observed yet."
+                            >
+                              {fmtPct(m.pAccept)} <i>prior</i>
+                            </span>
+                          ) : (
+                            <div className="cell-meter">
+                              <ConfidenceBar value={m.pAccept} className="roster-meter" />
+                              <span className="mono">{fmtPct(m.pAccept)}</span>
+                            </div>
+                          )}
                       </td>
                       <td className="r mono">{m && m.responseCount > 0 ? fmtDuration(m.responseMeanMs) : '-'}</td>
                       <td className="r mono">{m && m.dispatches > 0 ? fmtPct(m.pResolve) : '-'}</td>
@@ -136,13 +142,34 @@ export default function Roster() {
             </div>
           )}
         </Panel>
-        <p className="view-caption">
-          <b>Accept rate</b> is the share of dispatch offers this responder took, as a Beta
-          posterior seeded 2/1 so an unknown responder starts optimistic rather than at zero.
-          <b> Mean response</b> is dispatch to on-scene, averaged over arrivals actually observed.
-          <b> Resolved</b> is the share of their dispatches that closed correctly.
-          <b> Dispatches</b> is how many offers the number rests on; under five the model is still
-          <i> exploring</i>, so ranking samples from the posterior instead of trusting its mean.
+        {/* A glossary, not a paragraph: four terms read faster as a legend than run
+            together, and one dense sentence per term keeps the widest line on the
+            page shorter than the table it explains, not just capped at its width. */}
+        <dl className="roster-legend">
+          <div className="roster-legend-row">
+            <dt><Label>Accept rate</Label></dt>
+            <dd>
+              Share of dispatch offers this responder took, as a Beta posterior seeded
+              2/1 so an unknown responder starts optimistic rather than at zero.
+            </dd>
+          </div>
+          <div className="roster-legend-row">
+            <dt><Label>Mean response</Label></dt>
+            <dd>Dispatch to on-scene, averaged over arrivals actually observed.</dd>
+          </div>
+          <div className="roster-legend-row">
+            <dt><Label>Resolved</Label></dt>
+            <dd>Share of their dispatches that closed correctly.</dd>
+          </div>
+          <div className="roster-legend-row">
+            <dt><Label>Dispatches</Label></dt>
+            <dd>
+              How many offers the number rests on; under five the model is still
+              <i> exploring</i>, sampling the posterior instead of trusting its mean.
+            </dd>
+          </div>
+        </dl>
+        <p className="roster-legend-note">
           None of this is read from the roster file: every guard has hidden traits the agent is
           never shown, and these are its estimates of them from revealed outcomes.
         </p>

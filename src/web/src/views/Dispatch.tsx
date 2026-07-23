@@ -322,6 +322,13 @@ function IncidentDetail({ incident, overrideNonce }: { incident: Incident | null
       }
       bodyClassName="detail-body"
       scroll
+      footer={(
+        <OperatorBar
+          incident={incident}
+          overriding={overriding}
+          setOverriding={setOverriding}
+        />
+      )}
     >
       {d ? (
         /* Everything needed to accept or reject the call, above the fold, in
@@ -387,12 +394,6 @@ function IncidentDetail({ incident, overrideNonce }: { incident: Incident | null
           <WorkDisclosure incident={incident} />
         </div>
       </div>
-
-      <OperatorBar
-        incident={incident}
-        overriding={overriding}
-        setOverriding={setOverriding}
-      />
     </Panel>
   );
 }

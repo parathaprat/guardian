@@ -408,6 +408,42 @@
 
 /* ── Roster ─────────────────────────────────────────────────────────────── */
 
+/* A legend under the table it explains: each term gets its own line rather
+   than sitting mid-paragraph, so it can be scanned for the one definition
+   that's needed instead of read start to finish every time. */
+.roster-legend {
+  margin: var(--s5) 0 0;
+  display: grid;
+  gap: var(--s3);
+}
+.roster-legend-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: var(--s4);
+  align-items: baseline;
+}
+.roster-legend-row dt { padding-top: 2px; }
+.roster-legend-row dd {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.roster-legend-row dd i { color: var(--text-muted); font-style: italic; }
+
+.roster-legend-note {
+  margin: var(--s4) 0 0;
+  max-width: 74ch;
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .roster-legend-row { grid-template-columns: 1fr; gap: 2px; }
+}
+
 .roster-body { padding: 0; }
 .roster-tbl td { font-size: var(--fs-sm); }
 .roster-tbl th, .roster-tbl td { padding-block: var(--s3); }
@@ -430,9 +466,24 @@
 
 .skills { display: flex; gap: 4px; flex-wrap: wrap; max-width: 26ch; }
 .cell-meter { display: inline-flex; align-items: center; gap: 7px; justify-content: flex-end; }
-/* A number the agent assumed rather than measured. */
-.cell-meter.is-prior { opacity: 0.42; }
 .roster-meter { width: 52px; }
+
+/* A prior, not a measurement: no bar, since a bar implies an observed share.
+   The dotted underline and the label carry the distinction instead of an
+   opacity dip, which read as "weak data" rather than "no data yet". */
+.roster-prior {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  border-bottom: var(--hair) dotted var(--line-strong);
+  cursor: help;
+}
+.roster-prior i {
+  margin-left: 4px;
+  font-style: normal;
+  text-transform: uppercase;
+  font-size: calc(var(--fs-micro) - 1px);
+  letter-spacing: var(--tracking-micro);
+}
 
 /* Early on this is true of nearly every responder, so as an accent-filled pill
    it painted the whole table orange and told an operator nothing. It is a

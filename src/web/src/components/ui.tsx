@@ -94,10 +94,13 @@ export function ResponderStatusDot({ status }: { status: ResponderStatus }) {
 // ── surfaces ──────────────────────────────────────────────────────────────
 
 export function Panel({
-  eyebrow, title, actions, children, className, bodyClassName, scroll, bodyRef,
+  eyebrow, title, actions, children, footer, className, bodyClassName, scroll, bodyRef,
   'data-tour': dataTour,
 }: {
   eyebrow?: ReactNode; title?: ReactNode; actions?: ReactNode; children?: ReactNode;
+  /** Renders below the body, outside its scroll: a control that must stay
+      reachable without ever overlapping the content it sits under. */
+  footer?: ReactNode;
   className?: string; bodyClassName?: string; scroll?: boolean;
   /** For panes that must measure themselves, the site map sizes to its box. */
   bodyRef?: Ref<HTMLDivElement>;
@@ -116,6 +119,7 @@ export function Panel({
         </header>
       )}
       <div ref={bodyRef} className={cx('panel-body', scroll && 'scroll', bodyClassName)}>{children}</div>
+      {footer && <div className="panel-footer">{footer}</div>}
     </section>
   );
 }

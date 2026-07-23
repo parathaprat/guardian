@@ -173,11 +173,7 @@
 
 /* ── The call ───────────────────────────────────────────────────────────── */
 
-/* A flex column so the action bar can take `margin-top: auto`: when an incident
-   is short it settles on the floor of the panel instead of floating mid-air
-   with dead space under it, and it still sticks once content overflows.
-
-   `--gut` is the one knob that keeps this column readable at every width. Past
+/* `--gut` is the one knob that keeps this column readable at every width. Past
    the cap the content stops getting wider and the extra room becomes margin, so
    on a wall display the rationale never runs to 180 characters a line.
 
@@ -193,14 +189,15 @@
 /* `--gut` is declared on the panel's *children*, not on the panel. A container
    query cannot style its own container, so a `--gut` set on `.dispatch-detail`
    inside `@container call { ... }` is silently ignored and the wide layout
-   quietly keeps the narrow cap. Both children are full width, so `100%`
-   resolves identically in each and the head stays aligned with the content. */
+   quietly keeps the narrow cap. All three children are full width, so `100%`
+   resolves identically in each and the head, body and footer stay aligned. */
 .dispatch-detail > .panel-head,
-.dispatch-detail > .detail-body { --gut: max(var(--s5), calc((100% - 1180px) / 2)); }
+.dispatch-detail > .detail-body,
+.dispatch-detail > .panel-footer { --gut: max(var(--s5), calc((100% - 1180px) / 2)); }
 
 .dispatch-detail > .panel-head { padding-inline: var(--gut); }
 
-.detail-body { padding: 0; display: flex; flex-direction: column; }
+.detail-body { padding: 0; }
 
 /* Prose gets a tighter cap than the panel does. The agent's own sentences are
    the slowest thing on the screen to read; the tables and meters beside them
@@ -284,7 +281,8 @@
 
 @container call (min-width: 1400px) {
   .dispatch-detail > .panel-head,
-  .dispatch-detail > .detail-body { --gut: max(var(--s6), calc((100% - 1680px) / 2)); }
+  .dispatch-detail > .detail-body,
+  .dispatch-detail > .panel-footer { --gut: max(var(--s6), calc((100% - 1680px) / 2)); }
   .det-col--argument { padding-right: var(--s6); }
   .det-col--receipts { padding-left: var(--s6); }
 }
@@ -434,14 +432,12 @@
 
 /* ── Operator bar ───────────────────────────────────────────────────────── */
 
-/* Sticky, always in reach. The single most-used control on the screen must
-   never require a scroll to find. */
+/* Lives in the panel's footer slot, outside the scrolling body, so it is
+   always in reach without ever overlapping the content it sits under: the
+   single most-used control on the screen must never require a scroll to
+   find, and never require guessing whether that's really the last line of
+   the call or the bar has just drawn over it. */
 .op-bar {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
-  margin-top: auto;
-  flex: none;
   display: flex;
   align-items: center;
   gap: var(--s3);
@@ -449,18 +445,6 @@
   padding: var(--s4) var(--gut);
   background: var(--surface);
   border-top: var(--hair) solid var(--line-strong);
-}
-/* Content passing under the bar dissolves rather than being sliced mid-heading,
-   which is the difference between "there is more below" and "this is broken". */
-.op-bar::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  height: var(--s5);
-  background: linear-gradient(to top, var(--surface), transparent);
-  pointer-events: none;
 }
 .op-bar.is-done { background: var(--surface-sunken); font-size: var(--fs-sm); box-shadow: none; }
 
@@ -747,10 +731,6 @@
   .feed-rail { flex-direction: row; justify-content: center; padding: var(--s2); }
   .feed-rail-text { writing-mode: horizontal-tb; }
   .feed-rail-chevron { transform: rotate(90deg); }
-
-  /* Sticky now resolves against `.dispatch`, so the action bar rides the bottom
-     of the window while the call is on screen. */
-  .op-bar { margin-top: 0; }
 }
 
 @media (max-width: 640px) {

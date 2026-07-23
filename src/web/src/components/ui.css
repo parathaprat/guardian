@@ -6,6 +6,11 @@
    over the top of its own filter control. */
 .ui-panel > .panel-head { flex: none; }
 .ui-panel > .panel-body { flex: 1 1 auto; min-height: 0; }
+/* A real footer slot, outside the scrolling body, not a sticky trick inside
+   it: the body can only ever scroll under it as far as `panel-body`'s own
+   box, so the footer never has to overlap the tail of long content to stay
+   in reach. */
+.ui-panel > .panel-footer { flex: none; }
 .ui-panel-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ui-panel-title {
   font-size: var(--fs-md);
