@@ -5,7 +5,9 @@
  * default, they're how an engineer audits the agent, not how a shift is run.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect, useLayoutEffect, useMemo, useRef, useState,
+} from 'react';
 import type { PointerEvent, ReactNode, RefObject } from 'react';
 import type {
   AgentActionKind, EventType, EvidenceRef, Incident, IntakeParse, Priority, SecurityEvent,
@@ -785,8 +787,10 @@ const MAP_BASE = {
  * so a fractional reservation clips labels at small sizes.
  */
 const MAP_PAD = {
-  /** The alert ring is the widest thing centred on a node, not the node. */
-  top: MAP_BASE.pulse / 2 + 8,
+  /** Whichever reaches further above the zone: the alert ring, or a guard
+      bubble hung up-and-right of it. A zone pinned to the top of its box has
+      to clear both, or the bubble clips the panel's edge. */
+  top: Math.max(MAP_BASE.pulse / 2 + 8, MAP_BASE.node * 0.75 + MAP_BASE.guard + 5),
   /** Half a node, the label gap, and the zone code itself. */
   bottom: MAP_BASE.node / 2 + MAP_BASE.labelGap + MAP_BASE.zoneLabel,
   left: MAP_BASE.pulse / 2 + 8,
@@ -849,10 +853,12 @@ function spread(v: number, [lo, hi]: [number, number]): number {
   return (v - lo) / span;
 }
 
+interface InjectAt { zoneId: string; x: number; y: number }
+
 function SiteMap() {
   const world = useWorld();
   const incidents = useIncidents();
-  const [inject, setInject] = useState<string | null>(null);
+  const [inject, setInject] = useState<InjectAt | null>(null);
   const [radio, setRadio] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const { h: H, scale, heightPx } = useMapMetrics(bodyRef);
@@ -964,7 +970,16 @@ function SiteMap() {
           const p = hot.get(z.id);
           const side = m(MAP_BASE.node);
           return (
-            <g key={z.id} className="map-zone" onClick={() => setInject(inject === z.id ? null : z.id)}>
+            <g
+              key={z.id}
+              className="map-zone"
+              onClick={(ev) => {
+                if (inject?.zoneId === z.id) { setInject(null); return; }
+                const body = bodyRef.current;
+                const r = body?.getBoundingClientRect();
+                setInject({ zoneId: z.id, x: r ? ev.clientX - r.left : 0, y: r ? ev.clientY - r.top : 0 });
+              }}
+            >
               <title>{z.name}: click to raise a test alarm here</title>
               {p && (
                 <circle
@@ -1037,7 +1052,15 @@ function SiteMap() {
         })}
       </svg>
 
-      {inject && <InjectPopover zoneId={inject} onClose={() => setInject(null)} />}
+      {inject && (
+        <InjectPopover
+          zoneId={inject.zoneId}
+          x={inject.x}
+          y={inject.y}
+          containerRef={bodyRef}
+          onClose={() => setInject(null)}
+        />
+      )}
       {radio && <RadioIntake onClose={() => setRadio(false)} />}
     </Panel>
   );
@@ -1245,11 +1268,52 @@ function RadioIntake({ onClose }: { onClose: () => void }) {
   );
 }
 
-function InjectPopover({ zoneId, onClose }: { zoneId: string; onClose: () => void }) {
+/**
+ * Anchored to wherever the operator actually clicked rather than pinned to a
+ * corner of the panel, so it never lands far from the zone it is about, and
+ * never depends on the panel being tall enough for a fixed corner to fit.
+ * Measured and clamped after mount, the same approach `Tour` uses to keep its
+ * card on screen: the popover's own size isn't known until it renders once.
+ */
+function InjectPopover({ zoneId, x, y, containerRef, onClose }: {
+  zoneId: string; x: number; y: number; containerRef: RefObject<HTMLDivElement | null>; onClose: () => void;
+}) {
   const world = useWorld();
   const zone = world.zones.find((z) => z.id === zoneId);
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const container = containerRef.current;
+    if (!el || !container) return;
+    const margin = 10;
+    const place = () => {
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+      const pw = el.offsetWidth;
+      const ph = el.offsetHeight;
+      let left = x + 14;
+      let top = y + 14;
+      if (left + pw > cw - margin) left = x - pw - 14;
+      if (top + ph > ch - margin) top = y - ph - 14;
+      left = Math.max(margin, Math.min(left, Math.max(margin, cw - pw - margin)));
+      top = Math.max(margin, Math.min(top, Math.max(margin, ch - ph - margin)));
+      setPos({ left, top });
+    };
+    place();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place);
+    ro?.observe(container);
+    window.addEventListener('resize', place);
+    return () => { ro?.disconnect(); window.removeEventListener('resize', place); };
+  }, [x, y, containerRef]);
+
   return (
-    <div className="inject">
+    <div
+      className="inject"
+      ref={ref}
+      style={pos ? { left: pos.left, top: pos.top } : { left: x, top: y, visibility: 'hidden' }}
+    >
       <div className="inject-head">
         <Label tone="ink">Raise an alarm · {zone?.code ?? zoneId}</Label>
         <button type="button" className="btn btn--ghost btn--sm" onClick={onClose}>Close</button>

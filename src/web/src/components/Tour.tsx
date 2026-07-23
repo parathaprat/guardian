@@ -21,87 +21,58 @@ export interface TourStep {
 export const TOUR_STEPS: TourStep[] = [
   {
     title: 'This is guard[ai]n',
-    body:
-      'Alarms arrive here from every camera, door and patrol robot across three sites. '
-      + 'Guardian reads each one, decides what to do, and shows you why. Your job is to agree '
-      + 'with it or correct it. Takes about a minute to learn.',
+    body: 'Alarms from every camera, door and patrol robot across three sites land here. Guardian triages each one and shows its reasoning. Confirm it, or correct it.',
     view: 'dispatch',
   },
   {
     anchor: 'transport',
-    title: 'The world runs fast, once started',
-    body:
-      'This is a simulation at 4 times real speed, so the agent builds up experience '
-      + 'in minutes instead of months. Press space to pause or resume whenever you want to think, or '
-      + 'push it to 64x to grow the memory quickly. Nothing is lost when you pause: the queue '
-      + 'holds until you come back.',
-    keys: [['Space', 'pause and resume']],
+    title: 'Runs at 4x speed',
+    body: 'This is a simulation, so the agent builds up experience fast. Space pauses and resumes. Nothing is lost while paused.',
+    keys: [['Space', 'pause / resume']],
   },
   {
     anchor: 'queue',
-    title: 'Your queue, most urgent first',
-    body:
-      'Every alarm Guardian has picked up. "Needs you" is the short list: it committed a '
-      + 'responder, or called it top priority, and nobody has signed off yet. A quiet alarm '
-      + 'it closed on its own never reaches you. That is the point.',
+    title: 'Your queue',
+    body: '"Needs you" means Guardian dispatched someone, or flagged this top priority, and no one has signed off yet. Quiet alarms it handles alone never show up here.',
     keys: [['↑ ↓', 'move through the queue']],
   },
   {
     anchor: 'verdict',
-    title: 'What it decided, in plain words',
-    body:
-      'Send a responder, escalate, keep watching, or stand down. Underneath is exactly what '
-      + 'that means on the ground and the instruction going out to the responder.',
+    title: 'The decision',
+    body: 'Dispatch, escalate, keep watching, or stand down, plus what that means on the ground and the instruction sent out.',
   },
   {
     anchor: 'belief',
-    title: 'The number that matters',
-    body:
-      'On the left, how confident the device itself was. On the right, what Guardian believes '
-      + 'after checking what has actually happened at this spot at this hour. When those two '
-      + 'disagree, the right one is usually Guardian, because the device has no memory and it does.',
+    title: 'Device vs. Guardian',
+    body: "Left is the sensor's own confidence. Right is what Guardian believes once it checks this spot's history. When they disagree, trust the right one.",
   },
   {
     anchor: 'evidence',
-    title: 'Why it decided that',
-    body:
-      'The specific things it checked, ranked by how much each one moved the call. Bars to the '
-      + 'right argued for responding, bars to the left for standing down. Nothing here is a '
-      + 'guess it cannot show you.',
-    keys: [['E', "show every step, including the technical trace"]],
+    title: 'Why',
+    body: 'What Guardian checked, ranked by influence. Right pushes toward responding, left toward standing down.',
+    keys: [['E', 'show the technical trace']],
   },
   {
     anchor: 'actions',
     title: 'Agree, or correct it',
-    body:
-      'Looks right confirms the call. Change it lets you override, and the override is carried '
-      + 'out for real, not just logged. Guardian learns from both, and it weighs your corrections '
-      + 'more heavily than anything else it sees.',
+    body: 'Looks right confirms the call. Change it overrides it for real, not just on paper, and Guardian weighs your corrections heavily.',
     keys: [['Enter', 'looks right'], ['O', 'change it']],
   },
   {
     anchor: 'map',
-    title: 'Not every call arrives as an alarm',
-    body:
-      'Most of what a real control room hears is a guard on the radio, in their own words. '
-      + 'Radio call turns that into a dispatch: it resolves the place they named, looks up any '
-      + 'incident they referred back to, and asks you a question rather than guessing. Nothing is '
-      + 'raised until you confirm it.',
+    title: 'Radio calls too',
+    body: "Not everything arrives as an alarm. Radio call turns a guard's spoken report into a dispatch. Nothing is raised until you confirm it.",
   },
   {
     anchor: 'nav',
     title: 'The rest of the console',
-    body:
-      'Briefing writes the shift handover, ranked by what you have to act on first. Memory shows '
-      + 'everything the agent has learned and lets you question it in plain English. Evals is the '
-      + 'proof it is genuinely improving and not just moving numbers around. Roster is the crew, '
-      + 'scored on outcomes rather than on their file.',
+    body: 'Briefing: the shift handover. Memory: what the agent has learned. Evals: proof it is actually improving. Roster: the crew, scored on outcomes.',
     keys: [['1 - 5', 'switch screens'], ['?', 'all shortcuts']],
   },
   {
     anchor: 'transport',
     title: 'Press play to start',
-    body: 'Guardian is paused, so nothing runs until you say so. Hit play, or press space, whenever you are ready.',
+    body: "Guardian is paused. Press play, or space, when you're ready.",
     view: 'dispatch',
     keys: [['Space', 'play']],
   },
