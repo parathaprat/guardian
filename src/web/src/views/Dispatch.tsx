@@ -609,7 +609,6 @@ function OperatorBar({ incident, overriding, setOverriding }: {
             Change it
             <Kbd>O</Kbd>
           </button>
-          <span className="op-hint">Guardian learns from both.</span>
         </>
       ) : (
         <form
