@@ -1,9 +1,6 @@
 /**
- * SENTRY, shared domain contract.
- *
- * This file is the single source of truth for every type crossing a module
- * boundary (simulator ↔ agent ↔ memory ↔ API ↔ UI). Server and browser both
- * import from here. Keep it dependency-free.
+ * guard[ai]n, shared domain contract. Single source of truth for every type
+ * crossing a module boundary (simulator, agent, memory, API, UI). Keep dependency-free.
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -20,15 +17,7 @@ export type Severity = 1 | 2 | 3 | 4 | 5;
 
 export const PRIORITY_ORDER: Record<Priority, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
 
-/**
- * Which judgment layer produced a decision.
- *
- * `reasoner` is the deterministic local policy and is always available with no
- * key. `gemini` is the hosted judgment layer. They sit behind one seam: the
- * tools, the evidence and the trace format are identical either way, so an
- * incident decided by one is directly comparable to an incident decided by the
- * other.
- */
+/** Which judgment layer produced a decision. See DECISIONS.md for the reasoner/gemini split. */
 export type EngineKind = 'gemini' | 'reasoner';
 
 /** The engine that requires an API key. */
@@ -216,7 +205,6 @@ export interface TraceStep {
   id: string;
   index: number;
   kind: TraceStepKind;
-  /** Wall-clock ms this step took. */
   durationMs: number;
   /** For `thinking`: the summarized reasoning. For others: a one-line label. */
   label: string;
@@ -320,7 +308,6 @@ export interface Incident {
   outcome: ResolutionOutcome | null;
   /** Revealed only after resolution, this is what the UI shows in the ledger. */
   revealedTruth: EventTruth | null;
-  /** Which engine produced the decision. */
   engine: EngineKind;
   /** ids of other incidents the agent correlated this with. */
   linkedIncidentIds: string[];
@@ -354,7 +341,7 @@ export interface CalibrationLookup {
   pReal: number;
   uncertainty: number;
   observations: number;
-  /** Which backoff level answered: 'exact' | 'zone_type' | 'site_type' | 'prior'. */
+  /** Which backoff level answered the query. */
   level: 'exact' | 'zone_type' | 'site_type' | 'prior';
   key: CalibrationKey;
 }
@@ -397,7 +384,6 @@ export interface ResponderCandidate {
   model: ResponderModel;
   /** Thompson-sampled utility for this dispatch. */
   sampledUtility: number;
-  /** Human-readable "why this one". */
   reason: string;
 }
 
@@ -430,7 +416,6 @@ export interface PlaybookRule {
   falseAlarmMultiplier: number;
   rationale: string;
   author: 'reflection' | 'operator' | 'seed';
-  /** Incident ids that motivated the rule. */
   evidenceIncidentIds: string[];
   createdAt: SimTime;
   updatedAt: SimTime;
@@ -454,11 +439,9 @@ export interface PlaybookProposal {
   createdAt: SimTime;
   /** Rules the reflection pass wants to add or change. */
   rules: PlaybookRule[];
-  /** Rule ids it wants to retire, with reasons. */
   retire: Array<{ ruleId: string; reason: string }>;
   /** The reflection agent's narrative, shown above the diff. */
   summary: string;
-  /** How many resolved incidents this pass analysed. */
   incidentsAnalysed: number;
   engine: EngineKind;
   status: 'pending' | 'applied' | 'dismissed';
@@ -606,11 +589,7 @@ export interface ExperimentSummary {
   meanLiftPct: number;
   /** Mean of learned - cold: prior experience, isolated from online learning. */
   meanPriorExperiencePoints: number;
-  /**
-   * True when the whole 95% interval sits above zero. This is the sentence the
-   * README is allowed to make; if it is false, the honest claim is "no
-   * detectable difference at this sample size".
-   */
+  /** True when the whole 95% CI sits above zero; if false, there's no detectable difference at this sample size. */
   significant: boolean;
 }
 
@@ -624,6 +603,85 @@ export interface Experiment {
   summary: ExperimentSummary;
   durationMs: number;
   notes: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  LANGUAGE SURFACES, human-triggered, never on the alarm path. See docs/ARCHITECTURE.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A free-text report parsed into the structured event the engine consumes. A proposal, not an event: the operator must confirm before dispatch. */
+export interface IntakeParse {
+  /** Exactly what was typed or transcribed, kept verbatim for the audit trail. */
+  transcript: string;
+  /** Null when the report did not support committing to a type. */
+  type: EventType | null;
+  zoneId: string | null;
+  zoneCode: string | null;
+  siteId: string | null;
+  sourceKind: SourceKind;
+  /** The report rewritten as a dispatch line, without inventing detail. */
+  description: string;
+  /** The model's own confidence in the parse, 0..1. */
+  confidence: number;
+  /** What could not be resolved. Non-empty means do not dispatch blind. */
+  questions: string[];
+  /** One line per resolved field, so the operator can audit the inference. */
+  notes: string[];
+  /** Incidents the parse leaned on to resolve a back-reference ("same door as last night"). */
+  citedIncidentIds: string[];
+  engine: EngineKind;
+  /** True when the deterministic keyword parser produced this, not the model. */
+  degraded: boolean;
+  latencyMs: number;
+}
+
+export type BriefingItemKind = 'watch' | 'change' | 'responder' | 'open';
+
+export interface BriefingItem {
+  kind: BriefingItemKind;
+  headline: string;
+  body: string;
+  /** Incident, rule or zone ids backing the claim. Validated against real ids. */
+  citations: string[];
+  /** 1 = act on this now, 2 = know about it, 3 = context. */
+  rank: number;
+}
+
+/** The shift handover note, assembled from a deterministic digest. */
+export interface Briefing {
+  id: string;
+  createdAt: SimTime;
+  /** Sim window this covers. */
+  fromTs: SimTime;
+  toTs: SimTime;
+  headline: string;
+  items: BriefingItem[];
+  incidentsCovered: number;
+  resolvedCovered: number;
+  openCovered: number;
+  engine: EngineKind;
+  degraded: boolean;
+  /** Model calls this briefing cost. Shown in the UI, because it should be small. */
+  calls: number;
+  latencyMs: number;
+}
+
+export interface AskCitation {
+  kind: 'calibration' | 'responder' | 'playbook' | 'incident' | 'metric';
+  refId: string;
+  label: string;
+}
+
+/** A natural-language question answered by reading the memory stores through tools; reuses `TraceStep[]` so the answer is inspectable by the same trace UI as a dispatch decision. */
+export interface AskAnswer {
+  id: string;
+  question: string;
+  answer: string;
+  citations: AskCitation[];
+  trace: TraceStep[];
+  engine: EngineKind;
+  degraded: boolean;
+  latencyMs: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -683,6 +741,7 @@ export interface Snapshot {
   playbook: PlaybookRule[];
   proposals: PlaybookProposal[];
   lastEval: EvalRun | null;
+  briefings: Briefing[];
 }
 
 export type ServerEvent =
@@ -696,6 +755,7 @@ export type ServerEvent =
   | { type: 'memory'; data: { calibration: CalibrationCell[]; responderModels: ResponderModel[] } }
   | { type: 'playbook'; data: { playbook: PlaybookRule[]; proposals: PlaybookProposal[] } }
   | { type: 'eval'; data: EvalRun }
+  | { type: 'briefings'; data: Briefing[] }
   | { type: 'toast'; data: { level: 'info' | 'warn' | 'error'; message: string } };
 
 // ─────────────────────────────────────────────────────────────────────────────

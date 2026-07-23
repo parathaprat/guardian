@@ -1,13 +1,10 @@
 /**
- * SENTRY, the deterministic judgment engine.
+ * guard[ai]n, the deterministic judgment engine.
  *
- * This is not a stub. It is the engine the eval harness scores (fast, free,
- * reproducible) and the engine the whole product falls back to when no API key
- * is present. It runs the *same* evidence tools as the hosted agent, in a fixed
- * order, then applies an explicit expected-cost policy.
- *
- * Because it and the hosted engines share evidence assembly, an A/B run that holds the
- * engine constant and varies only memory isolates the learning contribution.
+ * Not a stub: this is what the eval harness scores, and what the product falls
+ * back to with no API key. Shares evidence assembly with the hosted engines so
+ * an A/B run that holds the engine constant isolates the memory contribution
+ * (see DECISIONS.md).
  */
 
 import type {
@@ -22,12 +19,9 @@ import {
 } from './tools';
 
 /**
- * Cost model, in arbitrary but consistent units.
- *
- * A nuisance dispatch costs guard time *and* guard trust, the second is why the
- * penalty is superlinear in P(false). A miss costs severity², because in physical
- * security the tail is the whole risk: a missed person-down is not five times
- * worse than a missed noise complaint, it is categorically different.
+ * Cost model, arbitrary but consistent units. Nuisance dispatch costs guard
+ * time *and* trust (superlinear penalty); a miss costs severity², since a
+ * missed person-down is categorically, not just proportionally, worse.
  */
 const COST_GUARD_TIME = 3.2;
 const COST_TRUST = 5.0;
@@ -143,10 +137,10 @@ export class ReasonerAgent implements DispatchAgent {
     );
 
     // ── Expected-cost comparison ───────────────────────────────────────────
-    // The severity term is squared *and* scaled: a missed high-severity incident
-    // is the only irreversible failure in this domain, so under-responding has to
-    // be priced well above the guard-time it saves. Without the asymmetry factor
-    // the policy monitors its way into a ~40% miss rate on severity-4 events.
+    // Severity term is squared *and* scaled: a missed high-severity incident is
+    // the only irreversible failure here, so under-responding must cost more
+    // than the guard-time it saves. Without it, the policy misses ~40% of
+    // severity-4 events.
     const costOfInaction = pReal * severity * severity * MISS_ASYMMETRY;
     const costOfResponse = COST_GUARD_TIME + (1 - pReal) * COST_TRUST;
     const respond = costOfInaction > costOfResponse;
@@ -164,12 +158,12 @@ export class ReasonerAgent implements DispatchAgent {
     // ── Action selection ───────────────────────────────────────────────────
     let action: AgentActionKind;
     if (isLifeSafety(ctx.event.type)) {
-      // Hard floor. No posterior is allowed to suppress a life-safety signal,
-      // the asymmetry is not something a cost model should be trusted to price.
+      // Hard floor: no posterior may suppress a life-safety signal, that call
+      // is not something a cost model should be trusted to price.
       action = severity >= 5 ? 'escalate' : 'dispatch';
     } else if (respond || (severity >= 4 && pReal >= 0.3)) {
-      // The second clause is a floor, not a tie-break: at severity 4+ a one-in-three
-      // chance of being real already justifies a body, whatever the cost model says.
+      // Floor, not a tie-break: at severity 4+, a one-in-three chance of being
+      // real already justifies a body, whatever the cost model says.
       action = severity >= 5 || correlation.patternDetected ? 'escalate' : 'dispatch';
     } else if (pReal < 0.2 && learnedFrom >= 4) {
       // Suppress outright only once the evidence is actually there.
@@ -253,13 +247,13 @@ export class ReasonerAgent implements DispatchAgent {
     const sentence = (s: string) => `${s.replace(/[.\s]+$/, '')}.`;
     const upperFirst = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 
-    // The correlation clause continues the history sentence ("…and 3 signals
-    // across adjacent zones"); everything else stands alone. Joining them all
-    // with the same separator is what produced run-on sentences.
+    // The correlation clause continues the history sentence rather than
+    // starting a new one; joining everything with the same separator produces
+    // run-ons.
     let lead = a.history.available && a.learnedFrom > 0
       ? `This zone and hour have produced a real incident ${pct(a.history.pReal)} of the time across `
         + `${a.learnedFrom} observation${a.learnedFrom === 1 ? '' : 's'}`
-      : 'Sentry has not seen this zone, hour and alarm type together often enough to have a view yet, '
+      : 'Guardian has not seen this zone, hour and alarm type together often enough to have a view yet, '
         + 'so it is falling back on how this kind of alarm behaves generally';
 
     if (a.correlation.patternDetected) lead += `, and ${a.correlation.label.toLowerCase()}`;
@@ -273,7 +267,7 @@ export class ReasonerAgent implements DispatchAgent {
       dispatch: `Sending someone: at ${pct(a.pReal)} likely real and severity ${a.severity} of 5, being wrong about a real incident costs more than the guard's time.`,
       escalate: `Escalating: severity ${a.severity} of 5 at ${pct(a.pReal)} likely real is past the point where one responder is enough.`,
       monitor: `Holding and watching: at ${pct(a.pReal)} likely real this is not strong enough to spend a guard on, but not weak enough to close.`,
-      suppress: `Standing down: at ${pct(a.pReal)} likely real this matches a nuisance pattern Sentry has seen here before, and sending someone would spend guard trust for no security benefit.`,
+      suppress: `Standing down: at ${pct(a.pReal)} likely real this matches a nuisance pattern Guardian has seen here before, and sending someone would spend guard trust for no security benefit.`,
     }[a.action];
 
     parts.push(sentence(verdict));

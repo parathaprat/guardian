@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   SENTRY, base layer + shared component vocabulary.
+   guard[ai]n, base layer + shared component vocabulary.
    Every view is built from these primitives so the product reads as one system.
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -22,8 +22,8 @@ body {
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-weight: 500;
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: var(--fs-base);
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -50,7 +50,7 @@ a { color: inherit; text-decoration: none; }
 /* The Calvis eyebrow: mono, uppercase, wide tracking, small. */
 .label {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   font-weight: 500;
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
@@ -68,14 +68,16 @@ a { color: inherit; text-decoration: none; }
   line-height: 0.92;
   margin: 0;
 }
-.display--xl { font-size: 56px; }
-.display--l  { font-size: 34px; }
-.display--m  { font-size: 22px; }
+/* One step, because one is all that is used: the page heroes on MEMORY, EVALS
+   and ROSTER, and the boot screen. `views.css` re-clamps it against the
+   viewport for the heroes; this is the standalone value the boot screen gets.
+   `--xl` and `--m` were removed when nothing referenced them any more. */
+.display--l { font-size: clamp(30px, 2.4vw, 50px); }
 
 .mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .num { font-variant-numeric: tabular-nums; }
 
@@ -110,7 +112,7 @@ a { color: inherit; text-decoration: none; }
   gap: var(--s2) var(--s3);
   padding: var(--s3) var(--s4);
   border-bottom: var(--hair) solid var(--line);
-  min-height: 40px;
+  min-height: 46px;
 }
 
 .panel-body { padding: var(--s4); }
@@ -130,7 +132,7 @@ a { color: inherit; text-decoration: none; }
   background: var(--surface);
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   font-weight: 500;
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
@@ -155,7 +157,7 @@ a { color: inherit; text-decoration: none; }
 .btn--ghost { border-color: transparent; color: var(--text-secondary); }
 .btn--ghost:hover:not(:disabled) { border-color: var(--line-strong); color: var(--text-primary); }
 
-.btn--sm { height: 26px; padding: 0 var(--s3); font-size: 9px; }
+.btn--sm { height: 27px; padding: 0 var(--s3); font-size: calc(var(--fs-micro) - 1px); }
 .btn--icon { width: 32px; padding: 0; }
 
 /* ── PILLS / TAGS ──────────────────────────────────────────────────────── */
@@ -164,11 +166,11 @@ a { color: inherit; text-decoration: none; }
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 20px;
-  padding: 0 7px;
+  height: 22px;
+  padding: 0 8px;
   border: var(--hair) solid var(--line-strong);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: calc(var(--fs-micro) - 1px);
   font-weight: 500;
   letter-spacing: var(--tracking-micro);
   text-transform: uppercase;
@@ -182,8 +184,8 @@ a { color: inherit; text-decoration: none; }
    so priority is never communicated by color alone. */
 .chip-p {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 26px; height: 20px; padding: 0 5px;
-  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  min-width: 30px; height: 22px; padding: 0 6px;
+  font-family: var(--font-mono); font-size: var(--fs-micro); font-weight: 700;
   letter-spacing: 0.04em; color: #fff;
 }
 .chip-p[data-p='P0'] { background: var(--p0); }
@@ -194,7 +196,7 @@ a { color: inherit; text-decoration: none; }
 /* Status dot + label pairs (icon+label rule: never color alone). */
 .status {
   display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--font-mono); font-size: 10px;
+  font-family: var(--font-mono); font-size: var(--fs-micro);
   letter-spacing: var(--tracking-micro); text-transform: uppercase;
 }
 .status::before {
@@ -217,7 +219,7 @@ a { color: inherit; text-decoration: none; }
   padding: var(--s2) var(--s3);
   border-bottom: var(--hair) solid var(--line);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: calc(var(--fs-micro) - 1px);
   font-weight: 500;
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
@@ -234,7 +236,15 @@ a { color: inherit; text-decoration: none; }
 
 /* ── METER (inline bar used in tables) ─────────────────────────────────── */
 
-.meter { position: relative; height: 4px; background: var(--paper-3); width: 100%; }
+/* The default width is set through `:where()`, which contributes no specificity,
+   so any caller class that gives the meter a width wins outright rather than
+   depending on which stylesheet the bundler happens to emit last. That order
+   dependence is not theoretical: `.roster-meter { width: 52px }` was losing to
+   this rule, and `width: 100%` inside a shrink-to-fit inline-flex resolves
+   against an indefinite width and collapses to zero, so every accept-rate bar
+   on ROSTER was rendering at 0px wide. */
+.meter { position: relative; height: 4px; background: var(--paper-3); }
+:where(.meter) { width: 100%; }
 .meter > i { position: absolute; inset: 0 auto 0 0; background: var(--accent); display: block; }
 
 /* ── SCROLL AREA ───────────────────────────────────────────────────────── */

@@ -1,13 +1,8 @@
 /**
  * Engine selection and the status readout the console header shows.
  *
- * There are two engines and only one of them needs a key. The product is fully
- * functional without one: `ReasonerAgent` is a real expected-cost policy, not a
- * stub. `GEMINI_API_KEY` upgrades the judgment layer and unlocks LLM-authored
- * playbook proposals; it is never a prerequisite.
- *
- * That is deliberate. A reviewer who cannot get a key still has to be able to
- * evaluate the work, and the A/B eval has to be runnable for free.
+ * Two engines, only one needs a key: `GEMINI_API_KEY` upgrades the judgment
+ * layer but is never a prerequisite (see DECISIONS.md, Decision 7).
  */
 
 import type { EngineStatus } from '../../shared/types';

@@ -30,7 +30,7 @@
 .chart-axis-text {
   fill: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-micro);
   letter-spacing: var(--tracking-micro);
   font-variant-numeric: tabular-nums;
 }
@@ -39,7 +39,7 @@
 .chart-value-text {
   fill: var(--text-secondary);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: calc(var(--fs-micro) - 1px);
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
@@ -59,27 +59,27 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--s2) var(--s4);
-  margin-top: var(--s3);
+  gap: var(--s2) var(--s5);
+  margin-top: var(--s4);
 }
 
 .chart-legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   min-width: 0;
 }
 
 .chart-legend-key {
-  width: 9px;
-  height: 9px;
+  width: 11px;
+  height: 11px;
   flex: none;
   background: currentColor;
 }
 
 .chart-legend-label {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-micro);
   letter-spacing: var(--tracking-micro);
   text-transform: uppercase;
   color: var(--text-secondary);
@@ -88,7 +88,7 @@
 
 .chart-legend-value {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-micro);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -110,7 +110,7 @@
 
 .chart-tip-title {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-micro);
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   opacity: 0.6;
@@ -134,7 +134,7 @@
 
 .chart-tip-label {
   flex: 1 1 auto;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -142,14 +142,14 @@
 
 .chart-tip-val {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .chart-tip-sub,
 .chart-tip-note {
-  font-size: 10px;
+  font-size: var(--fs-micro);
   opacity: 0.62;
   margin-top: 4px;
   line-height: 1.35;
@@ -165,7 +165,7 @@
 }
 
 .chart-seq-strip { display: flex; }
-.chart-seq-strip > i { width: 22px; height: 8px; display: block; }
+.chart-seq-strip > i { width: 26px; height: 10px; display: block; }
 
 /* Key + label pair. The sized box is the swatch itself, not the whole item,
    sizing the item collapsed the two labels onto one another. */
@@ -173,17 +173,17 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  margin-left: var(--s2);
+  margin-left: var(--s3);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-micro);
   letter-spacing: var(--tracking-micro);
   color: var(--text-muted);
   white-space: nowrap;
 }
 
 .chart-seq-swatch > i {
-  width: 14px;
-  height: 8px;
+  width: 16px;
+  height: 10px;
   flex: none;
   display: block;
   border: var(--hair) solid var(--line-strong);
@@ -198,7 +198,7 @@
 
 .chart-seq-ends {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-micro);
   letter-spacing: var(--tracking-micro);
   color: var(--text-muted);
   white-space: nowrap;
@@ -215,7 +215,7 @@
 
 .chart-donut-value {
   fill: var(--text-primary);
-  font-size: 20px;
+  font-size: var(--fs-lg);
   font-weight: 700;
   text-anchor: middle;
   font-variant-numeric: tabular-nums;
@@ -224,7 +224,7 @@
 .chart-donut-label {
   fill: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: calc(var(--fs-micro) - 1px);
   letter-spacing: var(--tracking-label);
   text-anchor: middle;
   text-transform: uppercase;
@@ -240,11 +240,11 @@
   border: 1px dashed var(--line);
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   text-align: center;
-  padding: var(--s4);
+  padding: var(--s5);
 }
 
 /* ── Metric tile ────────────────────────────────────────────────────────── */
@@ -252,8 +252,8 @@
 .metric-tile {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: var(--s4);
+  gap: 7px;
+  padding: var(--s4) var(--s5);
   border: var(--hair) solid var(--line);
   background: var(--surface);
   min-width: 0;
@@ -266,7 +266,7 @@ button.metric-tile:hover { border-color: var(--text-primary); }
 .mt-label { color: var(--text-muted); }
 
 .mt-value {
-  font-size: 30px;
+  font-size: clamp(28px, 2.0vw, 42px);
   font-weight: 700;
   line-height: 1;
   letter-spacing: var(--tracking-tight);
@@ -275,12 +275,12 @@ button.metric-tile:hover { border-color: var(--text-primary); }
 }
 
 .mt-value.is-hero {
-  font-size: 44px;
+  font-size: clamp(38px, 3vw, 64px);
   color: var(--accent);
 }
 
 .mt-unit {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 500;
   color: var(--text-muted);
   margin-left: 2px;
@@ -288,12 +288,19 @@ button.metric-tile:hover { border-color: var(--text-primary); }
 
 /* Three separate facts sit on this line: the delta, what it is measured
    against, and which direction is good. At 3px of gap, under mono tracking,
-   they read as one run of text. */
+   they read as one run of text, so the last one is separated by a mark as well
+   as by space. The separator is conditional: with no delta, the goal is the
+   only thing on the line and a leading dot would be nonsense. */
 .mt-foot {
   display: flex;
   align-items: baseline;
-  gap: var(--s2);
+  gap: var(--s3);
   flex-wrap: wrap;
+}
+.mt-delta + .mt-goal::before {
+  content: '·';
+  margin-right: var(--s2);
+  opacity: 0.55;
 }
 
 .mt-delta {
@@ -301,7 +308,7 @@ button.metric-tile:hover { border-color: var(--text-primary); }
   align-items: baseline;
   gap: 5px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -309,17 +316,23 @@ button.metric-tile:hover { border-color: var(--text-primary); }
 .mt-delta.is-bad { color: var(--status-crit); }
 .mt-delta.is-flat { color: var(--text-muted); }
 
-.mt-delta-arrow { font-size: 10px; }
+.mt-delta-arrow { font-size: var(--fs-micro); }
 
 .mt-delta-base,
 .mt-hint {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-micro);
   letter-spacing: var(--tracking-micro);
   text-transform: uppercase;
   color: var(--text-muted);
 }
 
-.mt-hint { margin-top: 2px; text-transform: none; letter-spacing: 0; line-height: 1.4; }
+.mt-hint {
+  margin-top: 3px;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.55;
+  max-width: 46ch;
+}
 
 .mt-spark { margin-top: var(--s2); }

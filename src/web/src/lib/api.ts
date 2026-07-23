@@ -1,15 +1,12 @@
 /**
- * Typed transport to the SENTRY server: one thin wrapper per REST route plus
- * the SSE subscription.
- *
- * The stream is the primary channel. REST is used for control actions and the
- * cold-start snapshot. Reconnection is ours rather than EventSource's default so
+ * Typed transport to the guard[ai]n server: one thin wrapper per REST route plus
+ * the SSE subscription. Reconnection is custom, not EventSource's default, so
  * the backoff is bounded and observable in the UI.
  */
 
 import type {
-  AgentActionKind, EvalRun, EventType, Experiment, OperatorFeedback,
-  PlaybookProposal, Priority, RuleStatus, ServerEvent, Snapshot,
+  AgentActionKind, AskAnswer, Briefing, EvalRun, EventType, Experiment, IntakeParse,
+  OperatorFeedback, PlaybookProposal, Priority, RuleStatus, ServerEvent, Snapshot, SourceKind,
 } from '../../../shared/types';
 
 /** Overridable before bundle load (e.g. a static build pointed at a remote API). */
@@ -126,6 +123,18 @@ export const api = {
     post<Experiment>('/evals/experiment', opts),
 
   resetMemory: (): Promise<Ok> => post<Ok>('/memory/reset'),
+
+  // ── language surfaces ──────────────────────────────────────────────────
+  parseIntake: (transcript: string): Promise<IntakeParse> =>
+    post<IntakeParse>('/intake/parse', { transcript }),
+  intakeDispatch: (input: {
+    type: EventType; zoneId: string; description: string; sourceKind: SourceKind;
+  }): Promise<{ ok: true; incidentId: string }> =>
+    post<{ ok: true; incidentId: string }>('/intake/dispatch', input),
+
+  brief: (): Promise<Briefing> => post<Briefing>('/handover/brief'),
+
+  ask: (question: string): Promise<AskAnswer> => post<AskAnswer>('/ask', { question }),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

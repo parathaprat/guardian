@@ -1,12 +1,7 @@
 /**
- * CHANNEL D, precedent retrieval.
- *
- * A bounded ring buffer of resolved incidents with a weighted feature
- * similarity. Cheap, explainable, and (unlike an embedding index) it can tell
- * an ops manager exactly why a case was retrieved.
- *
- * Only post-resolution facts are indexed (action taken, outcome). EventTruth is
- * never read here; `outcome` is the revealed signal and is already in the ledger.
+ * CHANNEL D, precedent retrieval: weighted feature similarity over a bounded
+ * ring buffer of resolved incidents. See DECISIONS.md for why this beats an
+ * embedding index here. Only post-resolution facts are indexed; EventTruth is never read.
  */
 
 import type {

@@ -1,16 +1,9 @@
 /**
- * SENTRY, metric definitions.
- *
- * Every number the product uses to claim "it is getting smarter" is defined
- * here, once. See docs/METRICS.md for the prose definitions, the composite
- * weighting, and the threats to validity.
- *
- * Two invariants:
- *   1. No metric may ever return NaN or Infinity. Empty input returns
- *      EMPTY_METRICS, and every ratio goes through `ratio()`.
- *   2. Ground truth is read only from `incident.revealedTruth`, which the
- *      simulator attaches *after* resolution. Nothing here can leak into the
- *      agent, because nothing here runs before a decision is made.
+ * guard[ai]n, metric definitions: every number backing the "getting smarter"
+ * claim, defined once here (see docs/METRICS.md for weighting and validity).
+ * Two invariants: no metric ever returns NaN/Infinity (`ratio()` enforces it),
+ * and ground truth is read only from `incident.revealedTruth`, attached after
+ * resolution, so nothing here can leak into the agent's decision.
  */
 
 import type {
@@ -111,10 +104,9 @@ function committed(inc: Incident): boolean {
 }
 
 /**
- * Did the agent's action match physical reality? Real ⇒ someone should have
- * gone; not real ⇒ nobody should have. Deliberately independent of the
- * simulator's own outcome label so the drill-down table stays interpretable
- * next to the `wasReal` column.
+ * Did the agent's action match physical reality (real ⇒ someone should have
+ * gone, not real ⇒ nobody should have)? Deliberately independent of the
+ * simulator's own outcome label so the drill-down table stays interpretable.
  */
 export function actionWasCorrect(action: AgentActionKind, wasReal: boolean): boolean {
   return wasReal ? COMMITTING_ACTIONS.has(action) : !COMMITTING_ACTIONS.has(action);
@@ -240,10 +232,9 @@ export const computeMetrics: ComputeMetrics = (input: MetricsInput): Metrics => 
     dispatchScore: 0,
   };
 
-  // "Never dispatched anything false" is a true statement even with zero
-  // dispatches, so falseDispatch always counts; the degenerate do-nothing agent
-  // is punished by missedCritical and truePositiveAction instead. The other
-  // four terms are genuinely unmeasurable without a denominator.
+  // "Never dispatched anything false" holds even with zero dispatches, so
+  // falseDispatch always counts; a do-nothing agent is punished by
+  // missedCritical and truePositiveAction instead of an undefined denominator.
   const availability: ScoreAvailability = {
     missedCritical: criticals > 0,
     falseDispatch: true,
@@ -267,17 +258,11 @@ const MIN_WINDOW_SAMPLES = 5;
 const MAX_CURVE_POINTS = 180;
 
 /**
- * A *sliding* window, not a running average. A cumulative mean asymptotically
- * stops moving, which makes a genuinely improving agent look like a flat line
- * after a few hundred incidents, exactly the chart artefact that makes
- * learning claims unfalsifiable.
- *
- * `calibrationCells` and `activeRules` are reconstructed from the incidents
- * themselves (the contract signature has no access to Memory): the first is the
- * number of distinct calibration cells the observations so far would have
- * created across all three backoff levels, the second is the number of distinct
- * playbook rules cited as evidence so far. Both are monotonic proxies for
- * memory size; see docs/METRICS.md.
+ * A *sliding* window, not a running average, a cumulative mean would make a
+ * genuinely improving agent look like a flat line after a few hundred
+ * incidents (an unfalsifiable chart artefact). `calibrationCells`/`activeRules`
+ * are reconstructed from incidents (no access to Memory here) as monotonic
+ * proxies for memory size; see docs/METRICS.md.
  */
 export const computeLearningCurve: ComputeLearningCurve = (
   incidents: Incident[],

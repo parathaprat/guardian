@@ -1,21 +1,7 @@
 /**
- * SENTRY: the learning claim as an experiment rather than an anecdote.
- *
- * `runEval` replays one seeded stream through three arms and reports a lift.
- * That answers "did the learned arm win on this world?" It does not answer the
- * only question that matters commercially, which is "does it win in general, or
- * did you pick a good seed?"
- *
- * Online learning makes every run order-dependent, so single-seed lift is a
- * random variable. This runs the same protocol across many independently seeded
- * worlds and reports the distribution: how often learning wins, by how much on
- * average, and how wide the interval around that average is. A 95% interval that
- * straddles zero means the result is noise, and this will say so rather than
- * quoting the best of three.
- *
- * Nothing here re-implements the eval. It is `runEval` in a loop plus honest
- * arithmetic, which is deliberate: the thing under test stays the thing that
- * ships.
+ * The learning claim as an experiment, not an anecdote: runs `runEval` across
+ * many independently seeded worlds and reports the lift distribution (win rate,
+ * mean, 95% CI) rather than a single seed's result. See DECISIONS.md.
  */
 
 import type {
@@ -39,11 +25,8 @@ export function seedsFor(baseSeed: number, count: number): number[] {
 
 /**
  * Student's t critical value at 95%, two-tailed, by degrees of freedom.
- *
- * Hardcoded rather than approximated with 1.96: at the sample sizes an operator
- * will actually run (10 to 30 seeds) the normal approximation understates the
- * interval by enough to matter, and understating your own error bars is the
- * exact failure this file exists to prevent.
+ * Hardcoded rather than approximated with 1.96, at the sample sizes an
+ * operator actually runs (10-30 seeds) the normal approximation understates the interval.
  */
 const T95: Record<number, number> = {
   1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365,

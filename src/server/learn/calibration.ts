@@ -13,11 +13,7 @@ import type {
 import { calibrationKey, hourBucketOf } from '../../shared/types';
 import type { CalibrationStore } from '../contracts';
 
-/**
- * Prior belief that an event of this type is real, before any site evidence.
- * Deliberately miscalibrated relative to the simulator's regularities, the
- * whole point is that observation has to move these.
- */
+/** Prior P(real) per type, deliberately miscalibrated so observation has to move it. */
 const TYPE_PRIOR: Record<EventType, number> = {
   motion_detected: 0.14,
   door_forced: 0.58,
@@ -40,11 +36,9 @@ const TYPE_PRIOR: Record<EventType, number> = {
 const FALLBACK_PRIOR = 0.35;
 
 /**
- * Prior concentration (total pseudo-count). Parameterising as alpha0 = k·p,
- * beta0 = k·(1-p) keeps the prior *mean* exactly at the type prior, an
- * additive Beta(1,1) base would drag every type toward 0.5 and flatten the
- * distinctions the grid is meant to show. Kept weak at ~3 pseudo-observations
- * so four real ones visibly move the cell.
+ * Prior concentration (pseudo-count). alpha0=k·p, beta0=k·(1-p) keeps the
+ * prior mean at the type prior instead of dragging it toward 0.5 like an
+ * additive Beta(1,1) would; kept weak (~3) so real observations move it fast.
  */
 const PRIOR_CONCENTRATION = 3.2;
 /** Floor on each shape so an extreme prior can't produce a U-shaped Beta. */
@@ -124,6 +118,12 @@ export class Calibration implements CalibrationStore {
 
   reset(): void {
     this.map.clear();
+  }
+
+  /** Replace every cell. Copies on the way in so the caller cannot mutate us. */
+  restore(cells: CalibrationCell[]): void {
+    this.map.clear();
+    for (const c of cells) this.map.set(c.key, { ...c });
   }
 
   private bump(

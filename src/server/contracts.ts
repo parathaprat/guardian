@@ -8,9 +8,9 @@
  */
 
 import type {
-  AgentDecision, CalibrationCell, CalibrationLookup, CorrelationFinding, EngineKind, EventType,
-  Guard, Incident, LearningPoint, Metrics, PlaybookProposal, PlaybookRule, Precedent,
-  Responder, ResponderCandidate, ResponderModel, Robot, SecurityEvent, SeededEvent,
+  AgentDecision, Briefing, CalibrationCell, CalibrationLookup, CorrelationFinding, EngineKind,
+  EngineStatus, EventType, Guard, Incident, LearningPoint, Metrics, PlaybookProposal, PlaybookRule, Precedent,
+  Responder, ResponderCandidate, ResponderModel, Robot, SecurityEvent, SeededEvent, SimControls,
   Severity, SimTime, Site, Skill, TraceStep, Zone, ResolutionOutcome, EventTruth,
 } from '@shared/types';
 
@@ -121,6 +121,87 @@ export interface Memory {
   playbook: PlaybookStore;
   precedent: PrecedentStore;
   reset(): void;
+  /** Everything learned, in a form that survives a process restart. */
+  snapshot(): MemorySnapshot;
+  /**
+   * Replace the learned state wholesale.
+   *
+   * Precedent is deliberately absent: it is an index over resolved incidents
+   * rather than a posterior, so it is rebuilt by replaying them rather than
+   * stored twice and risking the two copies disagreeing.
+   */
+  restore(snap: MemorySnapshot): void;
+}
+
+export interface MemorySnapshot {
+  calibration: CalibrationCell[];
+  responders: ResponderModel[];
+  playbook: PlaybookRule[];
+  proposals: PlaybookProposal[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PERSISTENCE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Durability for a running console. Write-behind, not write-through: the tick
+ * loop and eval harness stay synchronous and in-memory, and what gets persisted
+ * is the *result*. A crash loses whatever happened since the last write, an
+ * accepted trade for a simulated world.
+ *
+ * `InMemoryRepository` is the default, not a test double, it is what the eval
+ * harness runs on.
+ */
+export interface Repository {
+  readonly kind: 'memory' | 'postgres';
+  init(): Promise<void>;
+  close(): Promise<void>;
+
+  /** The persisted state for a seed, or null when this world is new. */
+  load(seed: number): Promise<PersistedRun | null>;
+
+  saveEvent(runId: string, event: SecurityEvent): Promise<void>;
+  saveIncident(runId: string, incident: Incident): Promise<void>;
+  saveMemory(runId: string, snap: MemorySnapshot): Promise<void>;
+  saveBriefing(runId: string, briefing: Briefing): Promise<void>;
+  saveMetrics(runId: string, metrics: Metrics, curve: LearningPoint[]): Promise<void>;
+  saveControls(runId: string, controls: SimControls, engine: EngineStatus): Promise<void>;
+
+  /** Open or reopen the run for a seed, returning its id. */
+  openRun(seed: number): Promise<string>;
+  /** Drop everything belonging to a run, for reseed and memory reset. */
+  clearRun(runId: string): Promise<void>;
+  /**
+   * Drop every incident in a run that never resolved, returning how many.
+   * Called once at boot: an incident still in flight when the worker stopped
+   * has no persisted ground truth, so it can never settle, and would otherwise
+   * resurface on the board forever.
+   */
+  dropStrandedIncidents(runId: string): Promise<number>;
+
+  /**
+   * Reserve an ingest idempotency key. False means it was already used, which
+   * is a duplicate delivery rather than an error: at-least-once is what every
+   * real alarm source gives you.
+   */
+  claimIngestKey(key: string, eventId: string): Promise<boolean>;
+}
+
+export interface PersistedRun {
+  runId: string;
+  seed: number;
+  controls: SimControls | null;
+  engine: EngineStatus | null;
+  events: SecurityEvent[];
+  incidents: Incident[];
+  /** Highest incident sequence in the whole run, not just the loaded window; the
+   *  id factory must resume past this or a new incident silently upserts an old one. */
+  maxIncidentSeq: number;
+  memory: MemorySnapshot | null;
+  briefings: Briefing[];
+  metrics: Metrics | null;
+  curve: LearningPoint[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,6 +222,17 @@ export interface AgentContext {
   correlate(event: SecurityEvent, windowMs: number): CorrelationFinding;
   /** Toggle the memory channels, this is what the eval harness varies. */
   useMemory: boolean;
+  /**
+   * Semantic precedent, when a live console has an embedding service.
+   *
+   * Optional, and absent in the eval harness on purpose: a network call per
+   * lookup would make a two second replay a twenty minute one, and a
+   * nondeterministic one would make the arms incomparable. See
+   * `learn/semantic.ts`.
+   */
+  semantic?: {
+    similar(event: SecurityEvent, k: number): Promise<Array<{ incidentId: string; similarity: number }>>;
+  };
   /** Called as each trace step is produced, so the UI can stream reasoning live. */
   onTraceStep?: (step: TraceStep) => void;
 }

@@ -8,7 +8,7 @@
 
 .kg-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: var(--hair);
   background: var(--line);
   border-bottom: var(--hair) solid var(--line);
@@ -16,13 +16,13 @@
 
 .kg-stat {
   background: var(--surface);
-  padding: var(--s3) var(--s4);
+  padding: var(--s4) var(--s5);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 .kg-stat-v {
-  font-size: 22px;
+  font-size: clamp(24px, 1.7vw, 36px);
   font-weight: 700;
   line-height: 1;
   letter-spacing: var(--tracking-tight);
@@ -32,14 +32,16 @@
 
 /* ── Canvas ─────────────────────────────────────────────────────────────── */
 
+/* Height tracks the window instead of stepping between three fixed values: the
+   graph is the centrepiece of this page and should take the room it is given.
+   The floor is where the spring layout stops being readable at all. */
 .kg-canvas {
   position: relative;
-  height: 500px;
+  height: clamp(380px, 52vh, 720px);
   min-height: 0;
   background: var(--surface);
 }
-@media (max-height: 900px) { .kg-canvas { height: 390px; } }
-@media (max-width: 900px) { .kg-canvas { height: 320px; } }
+@media (max-width: 900px) { .kg-canvas { height: clamp(330px, 44vh, 460px); } }
 
 .kg-svg { width: 100%; height: 100%; display: block; }
 
@@ -60,8 +62,8 @@
 .kg-empty p {
   margin: 0;
   max-width: 52ch;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--fs-sm);
+  line-height: 1.65;
   color: var(--text-secondary);
 }
 
@@ -101,7 +103,7 @@
 .kg-edge.is-dim { stroke: var(--line-strong); }
 
 .kg-node text {
-  fill: var(--text-muted);
+  fill: var(--text-secondary);
   font-family: var(--font-mono);
   text-anchor: middle;
   paint-order: stroke;
@@ -122,10 +124,12 @@
   letter-spacing: var(--tracking-label);
 }
 
-/* Unknown zones read as scaffolding. Knowledge is what lights them up. */
+/* Unknown zones read as scaffolding. Knowledge is what lights them up. The
+   stroke is `--ink-4` rather than `--line-strong`: scaffolding still has to be
+   visible, and at #CCC on white these rings all but disappeared. */
 .kg-node.is-zone circle {
   fill: var(--surface);
-  stroke: var(--line-strong);
+  stroke: var(--ink-4);
   stroke-width: 1;
 }
 .kg-node.is-zone.is-known circle {
@@ -148,12 +152,12 @@
   position: absolute;
   left: var(--s4);
   right: var(--s4);
-  bottom: var(--s3);
+  bottom: var(--s4);
   display: flex;
   align-items: baseline;
   gap: var(--s3);
   flex-wrap: wrap;
-  padding: var(--s2) var(--s3);
+  padding: var(--s3) var(--s4);
   background: var(--surface);
   border: var(--hair) solid var(--line-strong);
   border-left: 2px solid var(--accent);
@@ -162,8 +166,8 @@
 .kg-readout.is-hint { border-left-color: var(--line-strong); }
 
 .kg-readout-kind { color: var(--text-muted); }
-.kg-readout-name { font-size: 13px; letter-spacing: var(--tracking-tight); }
-.kg-readout-body { font-size: 11.5px; color: var(--text-secondary); }
+.kg-readout-name { font-size: var(--fs-md); letter-spacing: var(--tracking-tight); }
+.kg-readout-body { font-size: var(--fs-sm); color: var(--text-secondary); }
 
 /* ── Legend ─────────────────────────────────────────────────────────────── */
 
@@ -172,22 +176,22 @@
   align-items: center;
   gap: var(--s5);
   flex-wrap: wrap;
-  padding: var(--s3) var(--s4);
+  padding: var(--s4) var(--s5);
   border-top: var(--hair) solid var(--line);
 }
 
-.kg-key { display: inline-flex; align-items: center; gap: 7px; }
+.kg-key { display: inline-flex; align-items: center; gap: 8px; }
 .kg-key-ramp { display: inline-flex; }
-.kg-key-ramp > i { width: 16px; height: 8px; display: block; }
+.kg-key-ramp > i { width: 18px; height: 10px; display: block; }
 
 .kg-key-thin {
-  width: 26px;
+  width: 30px;
   height: 4px;
   background: linear-gradient(to right, var(--line-strong) 0 50%, var(--text-secondary) 50% 100%);
 }
 
 .kg-key-dash {
-  width: 26px;
+  width: 30px;
   height: 0;
   border-top: 2px dashed var(--text-muted);
 }

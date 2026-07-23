@@ -1,11 +1,9 @@
 /**
- * Append-only incident ledger.
+ * Append-only incident ledger, independent of whichever `Repository` is configured.
  *
- * The domain is a log, so the store is a log. JSONL keeps the project to a single
- * `npm install` with no database and no native modules, and it gives an ops manager
- * the audit trail they would actually be asked for in an incident review.
- *
- * Writes are best-effort by design: a full disk must never take dispatch down.
+ * The audit trail an ops manager would actually be asked for in an incident
+ * review. Writes are best-effort by design: a full disk must never take dispatch
+ * down.
  */
 
 import { appendFile, mkdir } from 'node:fs/promises';

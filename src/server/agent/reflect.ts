@@ -1,14 +1,7 @@
 /**
- * SENTRY, the reflection agent.
- *
- * Reads what actually happened and drafts changes to the playbook: new rules,
- * edits to existing ones, retirements. It never applies anything, it produces a
- * `PlaybookProposal` with `status: 'pending'` that a human approves as a diff.
- *
- * That human gate is the point. Physical security is an audited, liability-bearing
- * domain; a system that silently changes its own dispatch behaviour is unshippable
- * there. A system that proposes policy in writing, with evidence, and logs who
- * approved it, is one a director of security can actually adopt.
+ * guard[ai]n, the reflection agent. Reads what happened and drafts playbook changes as a
+ * `PlaybookProposal` with `status: 'pending'`; it never applies anything, a human approves
+ * as a diff (a hard requirement in an audited, liability-bearing domain).
  */
 
 import type {
@@ -103,7 +96,6 @@ function statisticalProposal(args: ReflectionArgs): PlaybookProposal {
     id ? world.zoneById.get(id)?.code ?? id : 'any zone';
   const siteCode = (id: string) => world.siteById.get(id)?.code ?? id;
 
-  // Only look at cells with enough evidence to justify a written policy.
   const cells = memory.calibration
     .cells()
     .filter((c) => c.observations >= MIN_OBS_FOR_RULE && c.zoneId !== null)
@@ -160,7 +152,6 @@ function statisticalProposal(args: ReflectionArgs): PlaybookProposal {
     if (rules.length >= 5) break;
   }
 
-  // Rules that are demonstrably not working.
   for (const r of memory.playbook.rules()) {
     if (r.status !== 'active') continue;
     if (r.stats.applied >= 8 && r.stats.precision < PRECISION_FLOOR) {
@@ -366,10 +357,8 @@ export async function runReflection(args: ReflectionArgs): Promise<PlaybookPropo
       status: 'pending',
     };
   } catch (err) {
-    // A failed reflection must never take the console down. The statistical
-    // pass is a genuine second opinion rather than a stub, so it stands in, but
-    // it says so: a proposal that quietly changed author is a proposal the
-    // approver cannot judge.
+    // The statistical pass is a genuine second opinion, so it stands in, but says so:
+    // a proposal that quietly changed author is one the approver can't judge.
     const fallback = statisticalProposal(args);
     const why = err instanceof Error ? err.message : String(err);
     return {

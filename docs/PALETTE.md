@@ -1,6 +1,6 @@
 # Chart palette: derivation and validation
 
-Chart color in SENTRY is **computed, not hand-picked**. Every scale below was run
+Chart color in guard[ai]n is **computed, not hand-picked**. Every scale below was run
 through a palette validator that checks five things numerically:
 
 1. **Lightness band**. OKLCH L within 0.43–0.77 (light) / 0.48–0.67 (dark).

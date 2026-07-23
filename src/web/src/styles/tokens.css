@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   SENTRY, design tokens
+   guard[ai]n, design tokens
    Derived from the Calvis brand system (calvis.com): Metropolis, ink #0D0D0D,
    paper #F6F6F6, single orange accent #EA5112, zero border-radius, mono
    micro-labels with wide tracking.
@@ -36,6 +36,23 @@
   --tracking-label: 0.15em;   /* mono eyebrow labels  */
   --tracking-tight: -0.02em;  /* display headlines    */
   --tracking-micro: 0.08em;
+
+  /* Type scale, fluid.
+     Every step is a clamp so the console holds a legible floor on a 14" laptop
+     and *uses* the room on a wall display instead of leaving a 15px paragraph
+     stranded in the middle of a 2560px panel. The floors are the sizes that
+     were measured as readable at arm's length; the ceilings stop a 4K display
+     from turning body copy into a headline. */
+  --fs-micro: clamp(11px, 0.60vw, 13px);   /* mono eyebrow labels, chips  */
+  --fs-xs:    clamp(12px, 0.68vw, 14px);   /* secondary readouts          */
+  --fs-sm:    clamp(13px, 0.78vw, 16px);   /* dense rows, table cells     */
+  --fs-base:  clamp(15px, 0.92vw, 18px);   /* prose the operator reads    */
+  --fs-md:    clamp(16px, 1.00vw, 20px);   /* panel titles                */
+  --fs-lg:    clamp(19px, 1.20vw, 24px);   /* section numbers             */
+  --fs-xl:    clamp(28px, 2.05vw, 44px);   /* the verdict                 */
+
+  /* Numerals read a touch smaller than letters at the same size. */
+  --fs-stat:  clamp(30px, 2.15vw, 46px);
 
   /* ── Surfaces & ink (Calvis) ──────────────────────────────────────────── */
   --ink:            #0D0D0D;

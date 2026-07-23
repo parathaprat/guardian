@@ -1,30 +1,26 @@
 /**
- * DISPATCH, the live console.
- *
- * Designed around one question the person on shift is actually asking:
- * *what needs me right now, and can I trust what Sentry did?*
- *
- * Everything follows from that. The queue defaults to the slice that needs a
- * human. The reasoning column leads with the decision in plain words and keeps
- * Confirm / Override permanently in reach. The two technical surfaces, the raw
- * ingest feed and the tool-call trace, are real, complete, and *collapsed by
- * default*, because they are how an engineer audits the agent, not how a
- * supervisor runs a shift.
+ * DISPATCH, the live console. Built around one question: what needs me right
+ * now, and can I trust what Guardian did? The queue defaults to that slice; the
+ * raw ingest feed and tool-call trace are real and complete but collapsed by
+ * default, they're how an engineer audits the agent, not how a shift is run.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type {
-  AgentActionKind, EvidenceRef, Incident, Priority, SecurityEvent, TraceStep,
-  WorldSnapshot,
+  AgentActionKind, EventType, EvidenceRef, Incident, IntakeParse, Priority, SecurityEvent,
+  TraceStep, WorldSnapshot,
 } from '../../../shared/types';
-import { ACTION_LABELS, ENGINE_LABELS, EVENT_LABELS, PRIORITY_ORDER } from '../../../shared/types';
+import {
+  ACTION_LABELS, ALL_EVENT_TYPES, ENGINE_LABELS, EVENT_LABELS, PRIORITY_ORDER,
+} from '../../../shared/types';
 import {
   ConfidenceBar, EmptyState, Kbd, Label, OutcomeBadge, Panel, Pill, PriorityChip,
-  SegmentedControl, StatusDot,
+  SegmentedControl, Spinner, StatusDot,
 } from '../components/ui';
+import { TraceInspector } from '../components/Trace';
 import { api } from '../lib/api';
-import { fmtClock, fmtDuration, fmtPct, initials, relTime } from '../lib/format';
+import { fmtClock, fmtClockShort, fmtDuration, fmtPct, initials, relTime } from '../lib/format';
 import {
   ACTION_MEANS, ACTION_PLAIN, ACTION_SHORT, EVIDENCE_PLAIN, OUTCOME_PLAIN,
   beliefGapNote, evidenceDirection, incidentHeadline, likelihoodWord, sourcePlain,
@@ -48,13 +44,9 @@ const SOURCE_GLYPH: Record<SecurityEvent['sourceKind'], string> = {
 const OPEN = new Set(['triaging', 'open', 'dispatched', 'on_scene', 'escalated']);
 
 /**
- * The inbox.
- *
- * "Needs you" is not "everything open". Sentry handling a P3 nuisance alarm on
- * its own is the product working, and putting it in front of a supervisor is
- * exactly the alarm fatigue this is meant to remove. It earns a human when the
- * agent has *committed a responder*, or when it is calling this a top-two
- * priority, and nobody has signed off yet.
+ * "Needs you" is not "everything open": Guardian handling a P3 alarm on its own
+ * is the product working. It earns a human only once the agent has committed a
+ * responder, or called it a top-two priority, and nobody has signed off yet.
  */
 function needsHuman(i: Incident): boolean {
   if (!OPEN.has(i.status) || i.feedback) return false;
@@ -125,7 +117,7 @@ export default function Dispatch({ overrideNonce }: { overrideNonce: number }) {
                     <span className={`seg-count${counts.needs > 0 ? ' is-hot' : ''}`}>{counts.needs}</span>
                   </>
                 ),
-                title: 'Sentry committed a responder, or called it P0/P1, and nobody has signed off yet',
+                title: 'Guardian committed a responder, or called it P0/P1, and nobody has signed off yet',
               },
               { value: 'open', label: `Open ${counts.open}`, title: 'Everything not yet closed out' },
               { value: 'all', label: 'All', title: 'Including resolved and suppressed' },
@@ -139,7 +131,7 @@ export default function Dispatch({ overrideNonce }: { overrideNonce: number }) {
           ? (
             <EmptyState title={ui.queueFilter === 'needs' ? 'Nothing needs you' : 'Queue empty'}>
               {ui.queueFilter === 'needs'
-                ? 'No open P0 or P1 incident is waiting on a human. Switch to Open to see everything Sentry is handling on its own.'
+                ? 'No open P0 or P1 incident is waiting on a human. Switch to Open to see everything Guardian is handling on its own.'
                 : 'Nothing has been triaged yet. Incidents appear the moment the agent picks up an event.'}
             </EmptyState>
           )
@@ -228,9 +220,11 @@ function FeedColumn() {
           <article
             key={e.id}
             className="feed-row enter"
-            title={`${sourcePlain(e.sourceKind)} · device confidence ${fmtPct(e.sensorConfidence)}`}
+            title={`${fmtClock(e.ts)} · ${sourcePlain(e.sourceKind)} · device confidence ${fmtPct(e.sensorConfidence)}`}
           >
-            <span className="feed-time mono">{fmtClock(e.ts)}</span>
+            {/* Minutes, not seconds: this column is scanned for rhythm, and the
+                exact stamp is one hover away. */}
+            <span className="feed-time mono">{fmtClockShort(e.ts)}</span>
             <span className="feed-glyph">{SOURCE_GLYPH[e.sourceKind]}</span>
             <span className="feed-zone mono">{String(e.metadata.zone ?? '')}</span>
             <span className="feed-label">{EVENT_LABELS[e.type]}</span>
@@ -302,7 +296,7 @@ function IncidentDetail({ incident, overrideNonce }: { incident: Incident | null
     return (
       <Panel className="dispatch-detail" eyebrow="The call">
         <EmptyState title="Select an incident">
-          Pick anything in the queue to see what Sentry decided, why it decided that, and to confirm or override it.
+          Pick anything in the queue to see what Guardian decided, why it decided that, and to confirm or override it.
         </EmptyState>
       </Panel>
     );
@@ -330,62 +324,69 @@ function IncidentDetail({ incident, overrideNonce }: { incident: Incident | null
       scroll
     >
       {d ? (
-        <>
-          {/* The lead. Everything an operator needs to accept or reject the call,
-              above the fold, in words, before a single number appears. */}
-          <section className="det-lead" data-tour="verdict">
-            <div className="det-verdict">
-              <h2 className={`display display--m det-action is-${d.action}`}>{ACTION_PLAIN[d.action]}</h2>
-              <PriorityChip priority={d.priority} />
-            </div>
-            <p className="det-means">{ACTION_MEANS[d.action]}</p>
-            <p className="det-instruction">{d.instruction}</p>
-          </section>
-
-          <section className="det-belief-wrap" data-tour="belief">
-            {/* The contrast that tells the whole story: what the device claimed
-                versus what the agent believes after consulting memory. */}
-            <div className="det-belief">
-              <div className="det-belief-cell">
-                <Label>The device claimed</Label>
-                <div className="det-belief-num mono">{fmtPct(e.sensorConfidence)}</div>
-                <ConfidenceBar value={e.sensorConfidence} tone="neutral" />
-                <span className="det-belief-note">the sensor's own confidence</span>
-              </div>
-              <div className="det-belief-cell is-agent">
-                <Label tone="accent">Sentry believes</Label>
-                <div className="det-belief-num mono">{fmtPct(pReal ?? 0)}</div>
-                <ConfidenceBar value={pReal ?? 0} />
-                <span className="det-belief-note">{likelihoodWord(pReal ?? 0)}</span>
-              </div>
-            </div>
-            <p className="det-gap">{beliefGapNote(e.sensorConfidence, pReal ?? 0)}</p>
-          </section>
-
-          <section className="det-why">
-            <div className="det-section-head">
-              <Label>Why</Label>
-              <span className="det-section-note">
-                {incident.decisionLatencyMs !== null
-                  ? `decided in ${fmtDuration(incident.decisionLatencyMs)} · ${fmtPct(d.confidence)} confidence`
-                  : `${fmtPct(d.confidence)} confidence`}
-              </span>
-            </div>
-            <p className="det-rationale">{d.rationale}</p>
-          </section>
-
-          <EvidenceRail evidence={d.evidence} />
-        </>
+        /* Everything needed to accept or reject the call, above the fold, in
+           words, before a single number appears. */
+        <section className="det-lead" data-tour="verdict">
+          <div className="det-verdict">
+            <h2 className={`det-action is-${d.action}`}>{ACTION_PLAIN[d.action]}</h2>
+            <PriorityChip priority={d.priority} />
+          </div>
+          <p className="det-means">{ACTION_MEANS[d.action]}</p>
+          <p className="det-instruction">{d.instruction}</p>
+        </section>
       ) : (
         <div className="det-thinking">
           <span className="status status--warn status--live">Deciding</span>
-          <span className="dim">Sentry is gathering evidence on {EVENT_LABELS[e.type]} at {zone?.name ?? e.zoneId}.</span>
+          <span className="dim">Guardian is gathering evidence on {EVENT_LABELS[e.type]} at {zone?.name ?? e.zoneId}.</span>
         </div>
       )}
 
-      {incident.revealedTruth && <GroundTruth incident={incident} />}
+      {/* Left, the argument; right, the receipts. One column until the panel is
+          wide enough that a second one beats 500px of empty margin. */}
+      <div className="det-cols">
+        <div className="det-col det-col--argument">
+          {d && (
+            <section className="det-belief-wrap" data-tour="belief">
+              <div className="det-belief">
+                <div className="det-belief-cell">
+                  <Label>The device claimed</Label>
+                  <div className="det-belief-num mono">{fmtPct(e.sensorConfidence)}</div>
+                  <ConfidenceBar value={e.sensorConfidence} tone="neutral" />
+                  <span className="det-belief-note">the sensor's own confidence</span>
+                </div>
+                <div className="det-belief-cell is-agent">
+                  <Label tone="accent">Guardian believes</Label>
+                  <div className="det-belief-num mono">{fmtPct(pReal ?? 0)}</div>
+                  <ConfidenceBar value={pReal ?? 0} />
+                  <span className="det-belief-note">{likelihoodWord(pReal ?? 0)}</span>
+                </div>
+              </div>
+              <p className="det-gap">{beliefGapNote(e.sensorConfidence, pReal ?? 0)}</p>
+            </section>
+          )}
 
-      <WorkDisclosure incident={incident} />
+          {d && (
+            <section className="det-why">
+              <div className="det-section-head">
+                <Label>Why</Label>
+                <span className="det-section-note">
+                  {incident.decisionLatencyMs !== null
+                    ? `decided in ${fmtDuration(incident.decisionLatencyMs)} · ${fmtPct(d.confidence)} confidence`
+                    : `${fmtPct(d.confidence)} confidence`}
+                </span>
+              </div>
+              <p className="det-rationale">{d.rationale}</p>
+            </section>
+          )}
+
+          {incident.revealedTruth && <GroundTruth incident={incident} />}
+        </div>
+
+        <div className="det-col det-col--receipts">
+          {d && <EvidenceRail evidence={d.evidence} />}
+          <WorkDisclosure incident={incident} />
+        </div>
+      </div>
 
       <OperatorBar
         incident={incident}
@@ -415,19 +416,16 @@ function EvidenceRail({ evidence }: { evidence: EvidenceRef[] }) {
   const shown = all ? ranked : ranked.slice(0, EVIDENCE_PREVIEW);
 
   /**
-   * Bars are scaled against the strongest piece of evidence *in this decision*,
-   * not against an absolute ±1. Absolute scaling renders a typical set of
-   * weights as four invisible stubs, which communicates nothing; relative
-   * scaling answers the question actually being asked, which of these moved it
-   * most, and preserves the ordering exactly.
+   * Scaled against the strongest piece of evidence in this decision, not an
+   * absolute ±1, or a typical weight set renders as four invisible stubs.
    */
   const peak = Math.max(...ranked.map((ev) => Math.abs(ev.weight)), 0.01);
 
   return (
     <section className="det-section" data-tour="evidence">
       <div className="det-section-head">
-        <Label>What Sentry checked</Label>
-        <span className="det-section-note">ranked by how much it moved the call</span>
+        <Label>What Guardian checked</Label>
+        <span className="det-section-note">ranked by influence</span>
       </div>
       <ul className="ev-list">
         {shown.map((ev, i) => {
@@ -454,14 +452,17 @@ function EvidenceRail({ evidence }: { evidence: EvidenceRef[] }) {
         })}
       </ul>
       <div className="ev-foot">
-        <span className="label">← stand down</span>
-        <span className="sr-only">Bar length is relative to the strongest piece of evidence in this decision.</span>
-        {ranked.length > EVIDENCE_PREVIEW && (
+        {ranked.length > EVIDENCE_PREVIEW ? (
           <button type="button" className="ev-more" onClick={() => setAll((v) => !v)}>
             {all ? 'Show less' : `Show all ${ranked.length}`}
           </button>
-        )}
-        <span className="label">respond →</span>
+        ) : <span />}
+        <span className="sr-only">Bar length is relative to the strongest piece of evidence in this decision.</span>
+        {/* Legend sits under the bars it explains, not adrift at the row ends. */}
+        <span className="ev-axis" aria-hidden>
+          <span className="label">← stand down</span>
+          <span className="label">respond →</span>
+        </span>
       </div>
     </section>
   );
@@ -479,14 +480,8 @@ function WorkDisclosure({ incident }: { incident: Incident }) {
   const live = incident.status === 'triaging';
   const n = incident.trace.length;
 
-  // Opening a section taller than the viewport otherwise leaves the operator
-  // staring at step 9 of 13 with the decision scrolled away. Anchor to the
-  // toggle instead, so expanding reads as expanding.
-  //
-  // The owning pane is scrolled directly rather than through scrollIntoView,
-  // which walks *every* ancestor scrollport up to the viewport: the console is
-  // a fixed shell, so that quietly dragged the whole page up and pushed the
-  // header off the top of the screen.
+  // Scrolls the owning pane directly, not via scrollIntoView, which walks every
+  // ancestor scrollport and would drag the fixed console shell off-screen.
   useEffect(() => {
     if (!ui.workOpen) return;
     const head = headRef.current;
@@ -508,67 +503,12 @@ function WorkDisclosure({ incident }: { incident: Incident }) {
         aria-expanded={ui.workOpen}
       >
         <span className="work-caret" aria-hidden>{ui.workOpen ? '-' : '+'}</span>
-        <span className="work-title">Show Sentry's working</span>
+        <span className="work-title">Show Guardian's working</span>
         <span className="work-count mono">{live ? 'live' : `${n} step${n === 1 ? '' : 's'}`}</span>
         <Kbd>E</Kbd>
       </button>
       {ui.workOpen && <TraceInspector steps={incident.trace} live={live} />}
     </section>
-  );
-}
-
-function TraceInspector({ steps, live }: { steps: TraceStep[]; live: boolean }) {
-  const [open, setOpen] = useState<Set<string>>(new Set());
-
-  const toggle = (id: string) => setOpen((s) => {
-    const n = new Set(s);
-    if (n.has(id)) n.delete(id); else n.add(id);
-    return n;
-  });
-
-  return (
-    <div className="work-body">
-      <ol className="trace">
-        {steps.map((s) => {
-          const expandable = s.kind === 'tool_call' || s.kind === 'tool_result';
-          const isOpen = open.has(s.id);
-          return (
-            <li key={s.id} className={`trace-step is-${s.kind}`}>
-              <span className="trace-rail" aria-hidden />
-              <div className="trace-body">
-                <button
-                  type="button"
-                  className="trace-head"
-                  onClick={() => expandable && toggle(s.id)}
-                  disabled={!expandable}
-                >
-                  <span className="trace-kind label">{s.kind.replace('_', ' ')}</span>
-                  <span className="trace-label truncate">{s.label}</span>
-                  <span className="trace-dur mono">{s.durationMs}ms</span>
-                  {expandable && <span className="trace-caret">{isOpen ? '-' : '+'}</span>}
-                </button>
-
-                {s.kind === 'thinking' && s.detail && <p className="trace-think">{s.detail}</p>}
-                {s.kind === 'decision' && s.detail && <p className="trace-decide">{s.detail}</p>}
-                {s.kind === 'error' && s.detail && <p className="trace-error">{s.detail}</p>}
-
-                {expandable && isOpen && (
-                  <pre className="trace-json">
-                    {JSON.stringify(s.kind === 'tool_call' ? s.toolInput : s.toolResult, null, 2)}
-                  </pre>
-                )}
-              </div>
-            </li>
-          );
-        })}
-        {live && (
-          <li className="trace-step is-live">
-            <span className="trace-rail" aria-hidden />
-            <div className="trace-body"><span className="status status--warn status--live">Working</span></div>
-          </li>
-        )}
-      </ol>
-    </div>
   );
 }
 
@@ -582,7 +522,7 @@ function GroundTruth({ incident }: { incident: Incident }) {
     <section className={`det-section truth${right ? ' is-right' : ' is-wrong'}`}>
       <div className="det-section-head">
         <Label>What actually happened</Label>
-        <span className="truth-verdict">{right ? 'Sentry was right' : 'Sentry was wrong'}</span>
+        <span className="truth-verdict">{right ? 'Guardian was right' : 'Guardian was wrong'}</span>
       </div>
       <div className="truth-line">
         <span className="truth-val">{incident.outcome ? OUTCOME_PLAIN[incident.outcome] : '-'}</span>
@@ -627,8 +567,8 @@ function OperatorBar({ incident, overriding, setOverriding }: {
       });
       pushToast(
         verdict === 'confirm'
-          ? 'Confirmed. Sentry records this as agreement and learns from it.'
-          : 'Override sent, and carried out for real. Your corrections are the strongest signal Sentry has.',
+          ? 'Confirmed. Guardian records this as agreement and learns from it.'
+          : 'Override sent, and carried out for real. Your corrections are the strongest signal Guardian has.',
         'info',
       );
       setOverriding(false);
@@ -668,7 +608,7 @@ function OperatorBar({ incident, overriding, setOverriding }: {
             Change it
             <Kbd>O</Kbd>
           </button>
-          <span className="op-hint">Sentry learns from both.</span>
+          <span className="op-hint">Guardian learns from both.</span>
         </>
       ) : (
         <form
@@ -695,14 +635,14 @@ function OperatorBar({ incident, overriding, setOverriding }: {
             <label className="op-field op-field--wide">
               <Label>Who goes</Label>
               <select value={responder} onChange={(ev) => setResponder(ev.target.value)}>
-                <option value="">Let Sentry choose</option>
+                <option value="">Let Guardian choose</option>
                 {guards.map((g) => <option key={g.id} value={g.id}>{g.name} · {g.status.replace(/_/g, ' ')}</option>)}
               </select>
             </label>
           </div>
           <input
             className="op-note-input"
-            placeholder="Why? (optional. Sentry reads this when it revises the playbook)"
+            placeholder="Why? (optional. Guardian reads this when it revises the playbook)"
             value={note}
             onChange={(ev) => setNote(ev.target.value)}
           />
@@ -719,17 +659,9 @@ function OperatorBar({ incident, overriding, setOverriding }: {
 // ── Site map ────────────────────────────────────────────────────────────────
 
 /**
- * Site bounds tile the unit square, so the plan has no aspect ratio of its own,
- * it takes the panel's. A fixed viewBox letterboxed it into a ribbon with dead
- * space either side, so the viewBox height is derived from the measured box.
- *
- * That has a consequence worth naming, because getting it wrong is what made
- * the labels collide: with the viewBox pinned at 100 units wide, one user unit
- * is `panelWidth / 100` pixels, so anything sized in user units grows with the
- * panel. On a 1800px window that scale is ~15px/unit; on a 2560px one it is
- * ~21px, and every glyph inflates by 40%. So the hook returns the scale too,
- * and every mark below is declared in *pixels* and converted. Strokes get
- * `non-scaling-stroke`, which does the same job natively.
+ * viewBox height derives from the measured panel box, not a fixed ratio, or the
+ * plan letterboxes. A user unit scales with panel width, so marks are declared
+ * in pixels and converted via the returned scale, or labels inflate and collide.
  */
 function useMapMetrics(
   ref: RefObject<HTMLDivElement | null>,
@@ -742,9 +674,8 @@ function useMapMetrics(
       const { width, height } = entry.contentRect;
       if (width <= 0 || height <= 0) return;
       const h = Math.max(6, Math.min(200, (height / width) * 100));
-      // Derive the scale from the viewBox actually used, exactly as `meet` does.
-      // Computing it as width/100 instead silently disagrees with the renderer
-      // the moment the clamp bites, and every mark comes out short by the ratio.
+      // Derived from the viewBox actually used, as `meet` does; width/100 alone
+      // silently disagrees with the renderer once the clamp bites.
       setM({ h, scale: Math.min(width / 100, height / h), heightPx: height });
     });
     ro.observe(el);
@@ -754,27 +685,40 @@ function useMapMetrics(
 }
 
 /**
- * Mark sizes in CSS pixels, calibrated for a plan rendered about 400px tall and
- * then scaled with the real one. Fixed pixel sizes were legible on a laptop and
- * far too small on a 27" panel, where the map is the same handful of pixels but
- * the viewing distance is not: a plan that gets more room should use it.
+ * Mark sizes in CSS pixels, calibrated for a ~300px plan and scaled from there,
+ * so a plan given more room actually uses it rather than staying laptop-sized.
  */
 const MAP_BASE = {
-  siteLabel: 19,
-  zoneLabel: 15,
-  guardLabel: 11,
-  node: 22,
-  guard: 14,
-  pulse: 28,
-  labelGap: 12,
+  siteLabel: 17,
+  zoneLabel: 16,
+  guardLabel: 12,
+  node: 24,
+  guard: 15,
+  pulse: 32,
+  labelGap: 13,
 } as const;
 
-/** Room inside each site box: for the site code above, zone codes below. */
-const MAP_INSET = { top: 0.2, bottom: 0.16, x: 0.07 } as const;
+/**
+ * Room reserved inside each site box, in CSS pixels rather than a fraction of
+ * the box: the fixed stack of marks it has to fit doesn't shrink with the box,
+ * so a fractional reservation clips labels at small sizes.
+ */
+const MAP_PAD = {
+  /** The alert ring is the widest thing centred on a node, not the node. */
+  top: MAP_BASE.pulse / 2 + 8,
+  /** Half a node, the label gap, and the zone code itself. */
+  bottom: MAP_BASE.node / 2 + MAP_BASE.labelGap + MAP_BASE.zoneLabel,
+  left: MAP_BASE.pulse / 2 + 8,
+  /** Guard bubbles hang up and to the right of their zone. */
+  right: MAP_BASE.node * 0.75 + MAP_BASE.guard + 5,
+} as const;
 
-/** Zone codes land near body-text size at a typical map height, by design. */
-const MAP_REF_H = 360;
-const MAP_K_MIN = 0.68;
+/**
+ * The floor matters more than the ceiling: most operators see the plan near its
+ * minimum height, so `MAP_K_MIN` is tuned to stay legible there, not at the max.
+ */
+const MAP_REF_H = 300;
+const MAP_K_MIN = 0.86;
 const MAP_K_MAX = 1.5;
 
 const clampN = (lo: number, v: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -782,11 +726,9 @@ const clampN = (lo: number, v: number, hi: number) => Math.max(lo, Math.min(hi, 
 interface Box { x: number; y: number; w: number; h: number }
 
 /**
- * The authored site bounds stack Mercer over Northgate, which reads well in a
- * squarish panel and terribly in a wide, short strip: every zone gets crushed
- * into a third of the height while two thirds of the width goes spare. When the
- * strip is wide, lay the sites out in a row instead. This is presentation only,
- * so it belongs on the client; the bounds the server sends are untouched.
+ * Authored site bounds stack vertically, which crushes zones in a wide, short
+ * panel. Re-lay sites in a row once the panel is wide; presentation only, the
+ * server's bounds are untouched.
  */
 function siteBoxes(sites: WorldSnapshot['sites'], aspect: number): Map<string, Box> {
   const out = new Map<string, Box>();
@@ -800,10 +742,37 @@ function siteBoxes(sites: WorldSnapshot['sites'], aspect: number): Map<string, B
   return out;
 }
 
+/** The smallest span worth stretching. Below it, translate rather than scale. */
+const SPREAD_MIN = 0.3;
+
+/**
+ * Authored zone coordinates don't use the full 0..1 range, so each site's zones
+ * are rescaled to fill their own box; tightly-clustered zones are translated
+ * rather than stretched, to avoid misrepresenting adjacency. Presentation only.
+ */
+function siteSpreads(zones: WorldSnapshot['zones']): Map<string, { x: [number, number]; y: [number, number] }> {
+  const acc = new Map<string, { x: [number, number]; y: [number, number] }>();
+  for (const z of zones) {
+    const cur = acc.get(z.siteId);
+    if (!cur) { acc.set(z.siteId, { x: [z.x, z.x], y: [z.y, z.y] }); continue; }
+    cur.x[0] = Math.min(cur.x[0], z.x); cur.x[1] = Math.max(cur.x[1], z.x);
+    cur.y[0] = Math.min(cur.y[0], z.y); cur.y[1] = Math.max(cur.y[1], z.y);
+  }
+  return acc;
+}
+
+/** Map one axis of a zone coordinate into 0..1 given the site's own extent. */
+function spread(v: number, [lo, hi]: [number, number]): number {
+  const span = hi - lo;
+  if (span < SPREAD_MIN) return 0.5 + (v - (lo + hi) / 2);
+  return (v - lo) / span;
+}
+
 function SiteMap() {
   const world = useWorld();
   const incidents = useIncidents();
   const [inject, setInject] = useState<string | null>(null);
+  const [radio, setRadio] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const { h: H, scale, heightPx } = useMapMetrics(bodyRef);
 
@@ -817,6 +786,7 @@ function SiteMap() {
     () => siteBoxes(world.sites, H > 0 ? 100 / H : 1),
     [world.sites, H],
   );
+  const spreads = useMemo(() => siteSpreads(world.zones), [world.zones]);
 
   const hot = useMemo(() => {
     const map = new Map<string, Priority>();
@@ -833,27 +803,42 @@ function SiteMap() {
   if (world.zones.length === 0) return <Panel className="dispatch-map" eyebrow="Site map" />;
 
   /**
-   * Zone centre in user units, via whichever box layout is in force.
-   *
-   * Zone x/y are 0..1 across the site, so a zone at y=1 sits exactly on the box
-   * edge and its label renders outside the box. The inset reserves room for the
-   * site code along the top and for zone codes along the bottom, which is also
-   * what stops a corner zone from landing under the site label.
+   * Zone centre in user units: spread across the site's extent, then placed
+   * inside the box minus the pixel padding marks need. `Math.max` guards the
+   * degenerate case, a box smaller than its own padding gets a centred row.
    */
   const at = (zone: { siteId: string; x: number; y: number }): [number, number] | null => {
     const b = boxes.get(zone.siteId);
     if (!b) return null;
-    const x = MAP_INSET.x + zone.x * (1 - MAP_INSET.x * 2);
-    const y = MAP_INSET.top + zone.y * (1 - MAP_INSET.top - MAP_INSET.bottom);
-    return [(b.x + x * b.w) * 100, (b.y + y * b.h) * H];
+    const sp = spreads.get(zone.siteId);
+    const zx = sp ? clampN(0, spread(zone.x, sp.x), 1) : zone.x;
+    const zy = sp ? clampN(0, spread(zone.y, sp.y), 1) : zone.y;
+
+    const bx = b.x * 100;
+    const by = b.y * H;
+    const bw = b.w * 100;
+    const bh = b.h * H;
+
+    const spanX = Math.max(0, bw - m(MAP_PAD.left) - m(MAP_PAD.right));
+    const spanY = Math.max(0, bh - m(MAP_PAD.top) - m(MAP_PAD.bottom));
+    return [
+      bx + (spanX > 0 ? m(MAP_PAD.left) + zx * spanX : bw / 2),
+      by + (spanY > 0 ? m(MAP_PAD.top) + zy * spanY : bh / 2),
+    ];
   };
 
   return (
     <Panel
       className="dispatch-map"
+      data-tour="map"
       eyebrow="Site map"
       title={`${world.sites.length} sites, ${world.zones.length} zones`}
-      actions={<Label>click a zone to raise an alarm</Label>}
+      actions={
+        <div className="map-actions">
+          <Label>click a zone to raise an alarm</Label>
+          <button type="button" className="btn btn--sm" onClick={() => setRadio(true)}>Radio call</button>
+        </div>
+      }
       bodyClassName="map-body"
       bodyRef={bodyRef}
     >
@@ -951,17 +936,18 @@ function SiteMap() {
           );
         })}
 
-        {/* Site codes paint last: drawn with the site rect, they sat *under* any
-            zone node that happened to land in the corner. */}
+        {/* Painted last so it sits above any zone node in the corner; top-right
+            because the top-left is where a plan's first zone tends to land. */}
         {world.sites.map((s) => {
           const b = boxes.get(s.id);
           if (!b) return null;
           return (
             <text
               key={`${s.id}-label`}
-              x={b.x * 100 + m(10)}
-              y={b.y * H + m(MAP_BASE.siteLabel + 8)}
+              x={(b.x + b.w) * 100 - m(11)}
+              y={b.y * H + m(MAP_BASE.siteLabel + 3)}
               fontSize={m(MAP_BASE.siteLabel)}
+              textAnchor="end"
               className="map-site-label"
             >
               {s.code}
@@ -971,6 +957,7 @@ function SiteMap() {
       </svg>
 
       {inject && <InjectPopover zoneId={inject} onClose={() => setInject(null)} />}
+      {radio && <RadioIntake onClose={() => setRadio(false)} />}
     </Panel>
   );
 }
@@ -979,6 +966,203 @@ const INJECTABLE = [
   'panic_button', 'person_down', 'door_forced', 'glass_break',
   'motion_detected', 'perimeter_breach', 'fire_alarm', 'tailgating',
 ] as const;
+
+// ── Radio intake ────────────────────────────────────────────────────────────
+
+/**
+ * A guard's radio call becomes a dispatch. The parse is shown before anything
+ * is raised, so a bad resolution is visible and editable rather than silent;
+ * an unresolved type or zone disables dispatch rather than guessing.
+ */
+/**
+ * Written against the real zone table in `world/site.ts`, so every sample
+ * resolves. Each exercises a different path: clean resolve, back-reference, hedge.
+ */
+const SAMPLE_CALLS: Array<{ label: string; text: string }> = [
+  {
+    label: 'Medical',
+    text: "Control, this is Ruiz. I'm in Stairwell A at Metro Center, there's someone collapsed on the landing between two and three. He's not responding to me. Get medical down here now.",
+  },
+  {
+    label: 'Back-reference',
+    text: "It's dock three at Harbor View again, same one as before. Door's propped open with a fire extinguisher. Third time this week.",
+  },
+  {
+    label: 'Hedged',
+    text: 'Yeah, control, I might have seen someone moving about over on Lot East. Honestly it could be nothing, could be the cleaners again. Just flagging it.',
+  },
+];
+
+function RadioIntake({ onClose }: { onClose: () => void }) {
+  const world = useWorld();
+  const [text, setText] = useState('');
+  const [parse, setParse] = useState<IntakeParse | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState(false);
+  // The parse is a proposal, so these hold the operator's version of it.
+  const [type, setType] = useState<EventType | ''>('');
+  const [zoneId, setZoneId] = useState('');
+  const [description, setDescription] = useState('');
+
+  const run = async (t: string) => {
+    const trimmed = t.trim();
+    if (!trimmed || busy) return;
+    setBusy(true);
+    setParse(null);
+    try {
+      const res = await api.parseIntake(trimmed);
+      setParse(res);
+      setType(res.type ?? '');
+      setZoneId(res.zoneId ?? '');
+      setDescription(res.description);
+    } catch (e) {
+      pushToast(e instanceof Error ? e.message : 'Parse failed', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const dispatch = async () => {
+    if (!type || !zoneId || !description.trim() || sending) return;
+    setSending(true);
+    try {
+      const res = await api.intakeDispatch({
+        type, zoneId, description: description.trim(), sourceKind: parse?.sourceKind ?? 'guard_report',
+      });
+      select(res.incidentId);
+      pushToast(`${EVENT_LABELS[type]} raised from the radio call`);
+      onClose();
+    } catch (e) {
+      pushToast(e instanceof Error ? e.message : 'Dispatch failed', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const ready = Boolean(type) && Boolean(zoneId) && description.trim().length > 0;
+
+  return (
+    <div className="radio-scrim" role="presentation" onClick={onClose}>
+      <div className="radio" role="dialog" aria-label="Radio intake" onClick={(e) => e.stopPropagation()}>
+        <div className="panel-head">
+          <div className="ui-panel-titles">
+            <span className="label">Radio intake</span>
+            <div className="ui-panel-title">Type what you heard</div>
+          </div>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={onClose}>Close</button>
+        </div>
+
+        <div className="radio-body">
+          <form onSubmit={(e) => { e.preventDefault(); void run(text); }}>
+            <textarea
+              className="radio-text"
+              rows={3}
+              value={text}
+              maxLength={1200}
+              placeholder="Control, this is Ruiz at the north dock…"
+              aria-label="The call, in the caller's own words"
+              onChange={(e) => setText(e.target.value)}
+              disabled={busy}
+            />
+            <div className="radio-actions">
+              <div className="radio-samples">
+                {SAMPLE_CALLS.map((s) => (
+                  <button
+                    key={s.label}
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    disabled={busy}
+                    onClick={() => { setText(s.text); void run(s.text); }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <button type="submit" className="btn btn--primary btn--sm" disabled={busy || text.trim().length === 0}>
+                {busy ? 'Parsing…' : 'Parse the call'}
+              </button>
+            </div>
+          </form>
+
+          {busy && <div className="radio-wait"><Spinner label="Resolving the location and the type" /></div>}
+
+          {parse && !busy && (
+            <div className="radio-parse">
+              <div className="radio-parse-head">
+                <Label tone="accent">Parsed</Label>
+                <span className="mono muted">
+                  {parse.degraded ? 'keyword matching, no hosted model' : `${ENGINE_LABELS[parse.engine]} · ${fmtPct(parse.confidence)} confident`}
+                </span>
+              </div>
+
+              <div className="radio-fields">
+                <label className="radio-field">
+                  <span className="label">Type</span>
+                  <select value={type} onChange={(e) => setType(e.target.value as EventType | '')}>
+                    <option value="">Unresolved, pick one</option>
+                    {ALL_EVENT_TYPES.map((t) => <option key={t} value={t}>{EVENT_LABELS[t]}</option>)}
+                  </select>
+                </label>
+                <label className="radio-field">
+                  <span className="label">Zone</span>
+                  <select value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
+                    <option value="">Unresolved, pick one</option>
+                    {world.zones.map((z) => <option key={z.id} value={z.id}>{z.code} · {z.name}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <label className="radio-field radio-field--wide">
+                <span className="label">Dispatch line</span>
+                <input
+                  type="text"
+                  value={description}
+                  maxLength={240}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </label>
+
+              {parse.notes.length > 0 && (
+                <ul className="radio-notes">
+                  {parse.notes.map((n) => <li key={n}>{n}</li>)}
+                </ul>
+              )}
+
+              {parse.citedIncidentIds.length > 0 && (
+                <p className="radio-cites">
+                  <span className="label">Resolved against</span>
+                  {parse.citedIncidentIds.map((id) => <span key={id} className="mono radio-cite">{id}</span>)}
+                </p>
+              )}
+
+              {parse.questions.length > 0 && (
+                <ul className="radio-questions">
+                  {parse.questions.map((q) => <li key={q}>{q}</li>)}
+                </ul>
+              )}
+
+              <div className="radio-commit">
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => { void dispatch(); }}
+                  disabled={!ready || sending}
+                  title={ready ? undefined : 'Type and zone must both be resolved before this can be raised'}
+                >
+                  {sending ? 'Raising…' : 'Raise this incident'}
+                </button>
+                <span className="radio-commit-note">
+                  Nothing is raised until you press this. Guardian then triages it exactly as it
+                  would a sensor alarm.
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function InjectPopover({ zoneId, onClose }: { zoneId: string; onClose: () => void }) {
   const world = useWorld();

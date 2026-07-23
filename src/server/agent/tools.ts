@@ -1,14 +1,8 @@
 /**
- * The agent's instruments, six evidence tools plus one terminal tool.
- *
- * Every tool returns a one-line `label` for the trace, a JSON-serialisable
- * `result` (what the model reads back), and `evidence` citing exactly which
- * memory objects were consulted. Both engines run the same tools, so the trace
- * inspector renders identically whether the hosted model or the reasoner is driving.
- *
- * When `ctx.useMemory` is false the four memory-backed tools answer honestly
- * ("no memory available") instead of reading the stores. That honesty is the
- * whole reason the A/B eval means anything.
+ * The agent's instruments: six evidence tools plus one terminal tool. Every tool returns a trace
+ * `label`, a JSON `result`, and `evidence` citing what was consulted; both engines share them so
+ * the trace renders identically. With `ctx.useMemory` false, memory-backed tools answer
+ * "no memory available" instead of reading the stores, which is what makes the A/B eval honest.
  */
 
 import type {
@@ -32,9 +26,8 @@ export interface TypeProfile {
 }
 
 /**
- * Deliberately separate from the calibration store: this is what a competent
- * operator knows on day one. The learned posterior overrides it as evidence
- * accumulates, which is what the learning curve is supposed to show.
+ * Deliberately separate from the calibration store: this is what a competent operator knows on
+ * day one, overridden by the learned posterior as evidence accumulates.
  */
 export const TYPE_PROFILE: Record<EventType, TypeProfile> = {
   motion_detected:      { prior: 0.16, severity: 2, skill: null,             note: 'highest nuisance rate of any signal, wildlife, HVAC plumes, rain on lenses' },
@@ -88,10 +81,7 @@ export const TOOL_NAMES = {
   zoneContext: 'get_zone_context',
 } as const;
 
-/**
- * Order is frozen, the tool block renders before `system`, so any reordering
- * would invalidate the prompt cache for every incident that follows.
- */
+/** Order is frozen: the tool block renders before `system`, so reordering invalidates the prompt cache. */
 export const TOOL_DEFS: ToolDef[] = [
   {
     name: TOOL_NAMES.zoneHistory,
@@ -463,18 +453,51 @@ function readCalibration(lookup: CalibrationLookup, zoneCode: string, type: Even
   return `No zone-level history, so backing off site-wide: ${pct(lookup.pReal)} of ${lookup.observations} ${label} alerts across the site were real (${spread}).${thin}`;
 }
 
-function recallSimilar(input: Record<string, unknown>, ctx: AgentContext): ToolOutcome {
+/**
+ * Semantic score can only *raise* a candidate the structured matcher already found, capped at
+ * `SEMANTIC_WEIGHT` of the final number. Keeps ranking explainable, and means the embedding
+ * service being wrong, stale or absent degrades the ordering instead of inventing precedents.
+ */
+const SEMANTIC_WEIGHT = 0.35;
+
+async function recallSimilar(input: Record<string, unknown>, ctx: AgentContext): Promise<ToolOutcome> {
   if (!ctx.useMemory) {
     return { label: `${TOOL_NAMES.precedent} · no ledger (memory off)`, result: cold(), evidence: [] };
   }
   const k = clamp(Math.round(num(input, 'limit') ?? 3), 1, 5);
-  const found = ctx.memory.precedent.similar(ctx.event, k);
+  // Over-fetch so the semantic pass has candidates to reorder rather than just
+  // rescoring the same k the structured matcher would have returned anyway.
+  const found = ctx.memory.precedent.similar(ctx.event, ctx.semantic ? k + 3 : k);
 
-  const matches: PrecedentMatch[] = found.map((p) => ({
+  let semanticById: Map<string, number> | null = null;
+  if (ctx.semantic) {
+    try {
+      const neighbours = await ctx.semantic.similar(ctx.event, k + 3);
+      if (neighbours.length > 0) {
+        semanticById = new Map(neighbours.map((n) => [n.incidentId, n.similarity]));
+      }
+    } catch {
+      // An enhancement that throws must not cost the decision its precedent.
+      semanticById = null;
+    }
+  }
+
+  const blended = found
+    .map((p) => {
+      const sem = semanticById?.get(p.incidentId);
+      const similarity = sem === undefined
+        ? p.similarity
+        : p.similarity * (1 - SEMANTIC_WEIGHT) + sem * SEMANTIC_WEIGHT;
+      return { p, similarity };
+    })
+    .sort((a, b) => b.similarity - a.similarity || (a.p.incidentId < b.p.incidentId ? -1 : 1))
+    .slice(0, k);
+
+  const matches: PrecedentMatch[] = blended.map(({ p, similarity }) => ({
     incidentId: p.incidentId,
     zoneCode: p.zoneCode,
     eventType: p.type,
-    similarity: round(p.similarity, 2),
+    similarity: round(similarity, 2),
     actionTaken: p.action,
     outcome: p.outcome,
     summary: p.summary,
@@ -742,10 +765,8 @@ export function asSeverity(n: number): Severity {
 }
 
 /**
- * Turn the model's `submit_decision` payload into a domain decision.
- *
- * Defensive on purpose: a decision that names a responder who does not exist,
- * or suppresses a life-safety alarm, must not reach the dispatch board.
+ * Turn the model's `submit_decision` payload into a domain decision, defensively: a nonexistent
+ * responder or a suppressed life-safety alarm must never reach the dispatch board.
  */
 export function decisionFromSubmit(
   input: Record<string, unknown>,

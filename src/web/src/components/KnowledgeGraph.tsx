@@ -1,33 +1,7 @@
 /**
- * The agent's calibration memory, drawn.
- *
- * Every other view reports what the agent knows as numbers. This one shows the
- * *shape* of it: a graph whose skeleton (sites and zones) is fixed by the world,
- * and whose knowledge (which alarm types behave which way, where) accumulates
- * edge by edge as outcomes resolve. Start it from empty and it fills in front of
- * you. That is the whole product claim in one picture.
- *
- * Three rules kept this honest rather than decorative:
- *
- *   1. Nothing is drawn that was not learned. A zone with no resolved history is
- *      visibly dim, and an alarm type appears only once it has been observed. An
- *      empty graph is a truthful graph, not a broken one.
- *   2. Edge colour is the learned P(real) and edge weight is the number of
- *      observations behind it, so a confident belief and a guess never look the
- *      same. Both are in the legend.
- *   3. Backoff is visible. When the agent has no zone-specific history it falls
- *      back to what the site does generally, and those borrowed edges are dashed.
- *      That is the cold-start story a security director will ask about.
- *
- * Layout is a hand-rolled spring/repulsion solver, warm-started from the previous
- * positions and re-run only when the topology changes, so new knowledge eases
- * into place instead of the whole graph jumping on every update.
- *
- * Past a few dozen edges any force-directed graph turns into a hairball, so this
- * one is built to be *interrogated* rather than merely admired: hovering or
- * focusing a node isolates its neighbourhood and writes out, in words, what the
- * agent believes about that place or that alarm type. The picture is the way in;
- * the sentence is the answer.
+ * The agent's calibration memory, drawn as a graph: sites/zones are fixed by the
+ * world, edges accumulate as outcomes resolve. See DECISIONS.md (Decision 5) for
+ * the design rationale.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -91,9 +65,7 @@ function buildGraph(cells: readonly CalibrationCell[], world: WorldSnapshot): Gr
     spine.push({ a: `zone:${z.id}`, b: `site:${z.siteId}` });
   }
 
-  // Hour buckets are collapsed here. The heatmap below already shows the hourly
-  // structure; this view is about which places and which alarm types the agent
-  // has an opinion on at all.
+  // Hour buckets are collapsed here; the heatmap view already covers hourly structure.
   const merged = new Map<string, {
     a: string; b: string; obs: number; weighted: number; backoff: boolean;
   }>();
@@ -185,8 +157,7 @@ function runLayout(
   const pos = new Map<string, Pt>();
   const siteAnchor = new Map<string, { x: number; y: number }>();
 
-  // Sites are pinned in a row. An unpinned graph drifts and rotates between
-  // updates, which reads as instability rather than as learning.
+  // Sites are pinned in a row; unpinned, the graph drifts and rotates between updates.
   const sites = graph.nodes.filter((n) => n.kind === 'site');
   sites.forEach((s, i) => {
     const x = ((i + 0.5) / Math.max(1, sites.length)) * W;
@@ -202,8 +173,7 @@ function runLayout(
       pos.set(n.id, { x: old.x, y: old.y, vx: 0, vy: 0 });
       continue;
     }
-    // New nodes are seeded near where they belong so they ease in rather than
-    // fly across the panel.
+    // Seed new nodes near where they belong so they ease in rather than fly across the panel.
     const anchor = n.siteId ? siteAnchor.get(`site:${n.siteId}`) : undefined;
     const base = anchor ?? { x: W * 0.5, y: H * 0.5 };
     const a = hash01(n.id) * Math.PI * 2;
@@ -225,13 +195,11 @@ function runLayout(
 
   const ids = graph.nodes.map((n) => n.id);
   const pinned = new Set(sites.map((s) => s.id));
-  // Type nodes are the ones carrying long captions, so they need more room from
-  // each other than the physics would otherwise give them.
+  // Type nodes carry long captions, so they need more room from each other than physics alone gives them.
   const labelled = new Set(graph.nodes.filter((n) => n.kind === 'type').map((n) => n.id));
 
   for (let it = 0; it < iterations; it++) {
-    // Repulsion. n is small (well under 60), so the all-pairs cost is fine and
-    // a quadtree would be complexity with nothing to buy.
+    // n is well under 60, so all-pairs repulsion is fine; a quadtree buys nothing here.
     for (let i = 0; i < ids.length; i++) {
       const pa = pos.get(ids[i]!)!;
       for (let j = i + 1; j < ids.length; j++) {
@@ -281,9 +249,8 @@ function runLayout(
       p.x += Math.max(-MAX_STEP, Math.min(MAX_STEP, p.vx));
       p.y += Math.max(-MAX_STEP, Math.min(MAX_STEP, p.vy));
 
-      // Asymmetric margins: type captions are drawn above their node, and the
-      // readout strip occupies the bottom of the canvas. A node parked in
-      // either band gets its label clipped.
+      // Asymmetric margins: type captions sit above their node, and the readout strip
+      // occupies the bottom of the canvas, so a node parked in either band clips its label.
       const mx = H * 0.05;
       p.x = Math.max(mx, Math.min(W - mx, p.x));
       p.y = Math.max(H * 0.09, Math.min(H * 0.84, p.y));
@@ -295,15 +262,18 @@ function runLayout(
 
 // ── sizing ──────────────────────────────────────────────────────────────────
 
-/** Intended on-screen sizes in CSS pixels, converted to user units on render. */
+/**
+ * Intended on-screen sizes in CSS pixels, converted to user units on render.
+ * Calibrated against a 500px canvas; labels are sized to be legible before marks.
+ */
 const PX = {
-  siteR: 15,
-  zoneR: 7,
-  typeR: 9,
-  siteLabel: 12,
-  zoneLabel: 9,
-  typeLabel: 10.5,
-  edgeMax: 3.4,
+  siteR: 17,
+  zoneR: 8,
+  typeR: 10,
+  siteLabel: 14,
+  zoneLabel: 11,
+  typeLabel: 12.5,
+  edgeMax: 4,
 } as const;
 
 function useBoxMetrics(ref: RefObject<HTMLDivElement | null>) {
@@ -314,12 +284,9 @@ function useBoxMetrics(ref: RefObject<HTMLDivElement | null>) {
     const ro = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
       if (width <= 0 || height <= 0) return;
-      // Same discipline as the site map: derive the scale from the viewBox that
-      // will actually be used, so pixel-sized marks really land at that size.
-      //
-      // The floor matters. On a wide panel the natural aspect gives a layout box
-      // 1000 by ~190, and a spring layout in a letterbox spreads into a smear.
-      // Holding a minimum height lets `meet` centre a graph-shaped graph instead.
+      // Derive scale from the viewBox actually used, so pixel-sized marks land at that size.
+      // Floor the height: a wide panel's natural aspect gives a letterbox layout box that a
+      // spring layout smears across, so a minimum height keeps `meet` centering a real graph.
       const h = Math.max(340, Math.min(1600, (height / width) * 1000));
       setM({ h, scale: Math.min(width / 1000, height / h) });
     });
@@ -357,8 +324,8 @@ function buildFocus(graph: Graph, id: string | null): Focus | null {
     lit.add(e.a);
     lit.add(e.b);
   }
-  // A site is the parent of its zones, so keep those lit even though the spine
-  // carries no knowledge: otherwise focusing a site blanks its own building.
+  // Keep a site's zones lit even though the spine carries no knowledge, otherwise
+  // focusing a site blanks its own building.
   if (node.kind === 'site') {
     for (const s of graph.spine) if (s.b === id) lit.add(s.a);
   } else if (node.kind === 'zone' && node.siteId) {
@@ -368,16 +335,13 @@ function buildFocus(graph: Graph, id: string | null): Focus | null {
   return { node, lit, edges };
 }
 
-/**
- * The focused node in a sentence. The graph shows that a belief exists; this
- * says what it is, which is the part an ops manager can act on.
- */
+/** The focused node in a sentence: the graph shows a belief exists, this says what it is. */
 function focusSentence(focus: Focus, labelOf: (id: string) => string): string {
   const { node, edges } = focus;
   if (edges.length === 0) {
     return node.kind === 'type'
       ? 'No resolved outcomes for this alarm type yet.'
-      : 'Nothing resolved here yet, so Sentry has no opinion about this place.';
+      : 'Nothing resolved here yet, so Guardian has no opinion about this place.';
   }
   const top = edges[0]!;
   const other = labelOf(top.a === node.id ? top.b : top.a);
@@ -403,8 +367,7 @@ export function KnowledgeGraph({ cells, world }: KnowledgeGraphProps) {
 
   const graph = useMemo(() => buildGraph(cells, world), [cells, world]);
 
-  // Re-solve only when the topology changes. Edge weights and colours update on
-  // every memory event, but moving every node each time would read as noise.
+  // Re-solve only when topology changes; re-laying-out on every memory event would read as noise.
   const topology = useMemo(
     () => `${graph.nodes.map((n) => n.id).sort().join()}|${graph.edges.map((e) => e.id).sort().join()}`,
     [graph],
@@ -436,8 +399,7 @@ export function KnowledgeGraph({ cells, world }: KnowledgeGraphProps) {
 
   const at = (id: string) => pos.get(id);
 
-  // Hover explores, click pins. Pinning matters because reading the sentence
-  // means moving the pointer away from the node that produced it.
+  // Hover explores, click pins: reading the sentence means moving the pointer off the node.
   const [hovered, setHovered] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string | null>(null);
   const focus = useMemo(() => buildFocus(graph, hovered ?? pinned), [graph, hovered, pinned]);
@@ -459,7 +421,7 @@ export function KnowledgeGraph({ cells, world }: KnowledgeGraphProps) {
           <div className="kg-empty">
             <span className="kg-empty-mark" aria-hidden />
             <p>
-              Nothing learned yet. The sites and their zones are the world Sentry was given.
+              Nothing learned yet. The sites and their zones are the world Guardian was given.
               Every connection you are about to see was earned from an outcome it watched resolve.
             </p>
           </div>
@@ -473,7 +435,6 @@ export function KnowledgeGraph({ cells, world }: KnowledgeGraphProps) {
           role="img"
           aria-label={`Knowledge graph: ${graph.learnedPairs} learned connections across ${world.zones.length} zones from ${graph.totalObservations} resolved outcomes`}
         >
-          {/* Structure the agent was given, not knowledge it earned. */}
           {graph.spine.map((s) => {
             const a = at(s.a); const b = at(s.b);
             if (!a || !b) return null;
@@ -569,7 +530,7 @@ export function KnowledgeGraph({ cells, world }: KnowledgeGraphProps) {
           </div>
         ) : graph.totalObservations > 0 ? (
           <div className="kg-readout is-hint">
-            <span className="kg-readout-body">Hover any node to isolate what Sentry has learned about it. Click to pin it.</span>
+            <span className="kg-readout-body">Hover any node to isolate what Guardian has learned about it. Click to pin it.</span>
           </div>
         ) : null}
       </div>

@@ -75,7 +75,7 @@ async function collectStream(ms) {
 }
 
 async function main() {
-  console.log(`\n\x1b[1mSENTRY smoke test\x1b[0m  →  ${BASE}\n${'─'.repeat(52)}`);
+  console.log(`\n\x1b[1mguard[ai]n smoke test\x1b[0m  →  ${BASE}\n${'─'.repeat(52)}`);
 
   section('1. Snapshot');
   const snap = await json('/api/snapshot');
@@ -220,7 +220,118 @@ async function main() {
       `${learned.metrics.dispatchScore}`);
   }
 
-  section('9. Robustness');
+  // ── 9. Language surfaces ────────────────────────────────────────────────
+  //
+  // Validation and shape only. Whether the parse is *good* depends on a hosted
+  // model and a key, so asserting on its content would make this suite fail for
+  // a reviewer without one. What must hold either way: bad input is refused,
+  // the response shape the UI destructures is present, and nothing is raised
+  // into the world by a parse alone.
+  section('9. Language surfaces');
+
+  check('intake rejects an empty transcript',
+    (await json('/api/intake/parse', { method: 'POST', body: JSON.stringify({ transcript: '  ' }) })).status === 400);
+  check('intake rejects an oversized transcript',
+    (await json('/api/intake/parse', { method: 'POST', body: JSON.stringify({ transcript: 'x'.repeat(2000) }) })).status === 400);
+  check('ask rejects an empty question',
+    (await json('/api/ask', { method: 'POST', body: JSON.stringify({ question: '' }) })).status === 400);
+  check('ask rejects an oversized question',
+    (await json('/api/ask', { method: 'POST', body: JSON.stringify({ question: 'x'.repeat(600) }) })).status === 400);
+
+  check('intake dispatch rejects an unknown event type',
+    (await json('/api/intake/dispatch', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'alien_landing', zoneId: 'z', description: 'd' }),
+    })).status === 400);
+
+  // Ids are validated against a snapshot taken *after* the call, never the one
+  // from the top of this file. With the sim running, a briefing can legitimately
+  // cite an incident that did not exist when section 1 ran, and checking against
+  // the stale copy reports a citation bug that is not there. Incidents are only
+  // ever appended, so a later snapshot is a superset of what the call could see.
+  const idExists = (s, id) => id === 'metrics'
+    || s.incidents.some((x) => x.id === id)
+    || s.calibration.some((x) => x.key === id)
+    || s.responderModels.some((x) => x.responderId === id)
+    || s.playbook.some((x) => x.id === id);
+
+  const zoneId = snap.body.world.zones[0]?.id;
+  check('intake dispatch rejects a missing description',
+    (await json('/api/intake/dispatch', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'door_propped', zoneId, description: '   ' }),
+    })).status === 400);
+
+  // A marker rather than a count. Counting incidents before and after only
+  // holds if the world is paused, and against a running sim it fails for a
+  // reason that has nothing to do with intake. This asserts the property
+  // directly: whatever the parse understood, none of it became an incident.
+  const marker = `smoke-${Date.now().toString(36)}`;
+  const transcript = `Door on the east dock is propped open again, reference ${marker}.`;
+  const parsed = await json('/api/intake/parse', {
+    method: 'POST',
+    body: JSON.stringify({ transcript }),
+  });
+  check('intake parse returns 200', parsed.status === 200, `got ${parsed.status}`);
+  if (parsed.status === 200) {
+    const p = parsed.body;
+    check('parse carries the transcript back verbatim', p.transcript === transcript);
+    check('parse exposes every field the composer reads',
+      'type' in p && 'zoneId' in p && 'zoneCode' in p && 'sourceKind' in p
+      && typeof p.description === 'string' && typeof p.confidence === 'number'
+      && Array.isArray(p.questions) && Array.isArray(p.notes) && Array.isArray(p.citedIncidentIds)
+      && typeof p.degraded === 'boolean');
+    check('parse confidence is a probability', p.confidence >= 0 && p.confidence <= 1, `${p.confidence}`);
+    check('parse resolves the type against the real vocabulary',
+      p.type === null || snap.body.feed.length === 0 || typeof p.type === 'string');
+    check('parse resolves the zone against the real world',
+      p.zoneId === null || snap.body.world.zones.some((z) => z.id === p.zoneId),
+      `${p.zoneId}`);
+    const afterParse = (await json('/api/snapshot')).body;
+    check('parse never cites an incident that does not exist',
+      p.citedIncidentIds.every((id) => afterParse.incidents.some((i) => i.id === id)));
+  }
+  // The whole safety argument for this feature: a parse is a proposal.
+  const afterIntake = (await json('/api/snapshot')).body;
+  check('parsing alone raises nothing',
+    !afterIntake.incidents.some((i) => i.event.description.includes(marker))
+    && !afterIntake.feed.some((e) => e.description.includes(marker)));
+
+  const brief = await json('/api/handover/brief', { method: 'POST' });
+  check('handover returns 200', brief.status === 200, `got ${brief.status}`);
+  if (brief.status === 200) {
+    const b = brief.body;
+    check('briefing exposes every field the view reads',
+      typeof b.id === 'string' && typeof b.headline === 'string' && Array.isArray(b.items)
+      && typeof b.incidentsCovered === 'number' && typeof b.calls === 'number'
+      && typeof b.degraded === 'boolean');
+    check('briefing items are ranked 1..3',
+      b.items.every((i) => i.rank >= 1 && i.rank <= 3));
+    const afterBrief = (await json('/api/snapshot')).body;
+    check('briefing never cites an id that does not exist',
+      b.items.every((i) => i.citations.every((c) => idExists(afterBrief, c))));
+    check('briefing reaches the snapshot', afterBrief.briefings.some((x) => x.id === b.id));
+  }
+
+  const asked = await json('/api/ask', {
+    method: 'POST', body: JSON.stringify({ question: 'Which zone has the most false alarms?' }),
+  });
+  check('ask returns 200', asked.status === 200, `got ${asked.status}`);
+  if (asked.status === 200) {
+    const a = asked.body;
+    check('answer exposes every field the panel reads',
+      typeof a.answer === 'string' && Array.isArray(a.citations) && Array.isArray(a.trace)
+      && typeof a.degraded === 'boolean' && typeof a.latencyMs === 'number');
+    check('ask looked something up before answering', a.trace.length > 0, `${a.trace.length} steps`);
+    check('ask trace steps carry the shape the inspector renders',
+      a.trace.every((s) => typeof s.id === 'string' && typeof s.kind === 'string'
+        && typeof s.label === 'string' && typeof s.index === 'number'));
+    const afterAsk = (await json('/api/snapshot')).body;
+    check('ask never cites an id that does not exist',
+      a.citations.every((c) => idExists(afterAsk, c.refId)));
+  }
+
+  section('10. Robustness');
   check('unknown route 404s', (await json('/api/nope')).status === 404);
   const malformed = await fetch(`${BASE}/api/sim/speed`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: '{{{',

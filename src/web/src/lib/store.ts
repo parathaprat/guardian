@@ -1,18 +1,14 @@
 /**
- * Client state. One immutable `StoreState`, a `useSyncExternalStore` subscription,
- * and a reducer that turns each `ServerEvent` into a targeted patch.
- *
- * Every selector below returns a value that is *referentially stable* while the
- * underlying data is unchanged, that is what keeps `useSyncExternalStore` from
- * re-rendering on every frame of the event stream, and it is the one invariant
- * to preserve when adding a selector.
+ * Client state: one immutable `StoreState`, a `useSyncExternalStore` subscription,
+ * and a reducer turning each `ServerEvent` into a targeted patch. Selectors must
+ * stay referentially stable, that's what keeps re-renders from firing every frame.
  */
 
 import { useEffect, useSyncExternalStore } from 'react';
 import { api, connect, getConnection } from './api';
 import type { ConnectionInfo } from './api';
 import type {
-  CalibrationCell, EngineStatus, EvalRun, Incident, LearningPoint, Metrics,
+  Briefing, CalibrationCell, EngineStatus, EvalRun, Incident, LearningPoint, Metrics,
   PlaybookProposal, PlaybookRule, ResponderModel, SecurityEvent, ServerEvent,
   SimControls, Snapshot, TraceStep, WorldSnapshot,
 } from '../../../shared/types';
@@ -29,11 +25,9 @@ export type ToastLevel = 'info' | 'warn' | 'error';
 export type QueueFilter = 'needs' | 'open' | 'all';
 
 /**
- * Console preferences. These exist because the two audiences want different
- * densities out of the same screen: an ops manager wants the decision and the
- * two buttons, an engineer wants the raw ingest and the tool calls. Rather than
- * average the two into something neither likes, both are one keystroke away and
- * the choice persists.
+ * Console preferences. Two audiences want different density from one screen
+ * (ops wants the decision, engineers want raw tool calls), so both views are a
+ * keystroke away rather than averaged into one.
  */
 export interface UiPrefs {
   /** The raw event feed column. Off by default, it is context, not work. */
@@ -76,13 +70,12 @@ export interface StoreState {
 const FEED_CAP = 200;
 const TOAST_CAP = 5;
 const TOAST_TTL_MS = 5200;
-const THEME_KEY = 'sentry.theme';
-const UI_KEY = 'sentry.ui';
+const THEME_KEY = 'guardain.theme';
+const UI_KEY = 'guardain.ui';
 
 /**
- * Opens on `open`, not `needs`. A console whose first frame can legitimately be
- * empty teaches the operator it might be broken; "everything live" always has
- * something in it, and the Needs-you count sits right beside it.
+ * Opens on `open`, not `needs`: an empty first frame teaches the operator the
+ * console might be broken, and "everything live" always has something in it.
  */
 const DEFAULT_UI: UiPrefs = { ingestOpen: false, workOpen: false, queueFilter: 'open', tourDone: false };
 const NO_IDS: readonly string[] = [];
@@ -95,6 +88,7 @@ const NO_CELLS: readonly CalibrationCell[] = [];
 const NO_MODELS: readonly ResponderModel[] = [];
 const NO_RULES: readonly PlaybookRule[] = [];
 const NO_PROPOSALS: readonly PlaybookProposal[] = [];
+const NO_BRIEFINGS: readonly Briefing[] = [];
 
 const EMPTY_WORLD: WorldSnapshot = { sites: [], zones: [], guards: [], robots: [] };
 const EMPTY_CONTROLS: SimControls = {
@@ -251,6 +245,9 @@ export function applyServerEvent(e: ServerEvent): void {
       return;
     case 'eval':
       setState({ snapshot: { ...snap, lastEval: e.data } });
+      return;
+    case 'briefings':
+      setState({ snapshot: { ...snap, briefings: e.data } });
       return;
   }
 }
@@ -531,6 +528,10 @@ export function useProposals(): readonly PlaybookProposal[] {
 
 export function useLastEval(): EvalRun | null {
   return useSelector((s) => s.snapshot?.lastEval ?? null);
+}
+
+export function useBriefings(): readonly Briefing[] {
+  return useSelector((s) => s.snapshot?.briefings ?? NO_BRIEFINGS);
 }
 
 /** Sim clock, for `relTime` against incident timestamps. */

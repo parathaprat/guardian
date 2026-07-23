@@ -9,13 +9,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Header, { VIEWS, type ConnectionState, type ViewId } from './components/Header';
 import { Kbd, Toasts } from './components/ui';
-import { Tour } from './components/Tour';
+import { Tour, TOUR_STEPS } from './components/Tour';
 import { api } from './lib/api';
 import {
   select, setUi, toggleTheme, toggleUi, useConnection, useControls, useLiveStore,
   useQueueIds, useReady, useSelection, useSnapshot, useTheme, useUi,
 } from './lib/store';
 import Dispatch from './views/Dispatch';
+import Briefing from './views/Briefing';
 import Memory from './views/Memory';
 import Evals from './views/Evals';
 import Roster from './views/Roster';
@@ -43,9 +44,9 @@ const SHORTCUT_GROUPS: Array<{ title: string; keys: Array<[string, string]> }> =
   {
     title: 'Seeing more',
     keys: [
-      ['E', "Show / hide Sentry's working"],
+      ['E', "Show / hide Guardian's working"],
       ['F', 'Show / hide the raw alarm feed'],
-      ['1 – 4', 'Dispatch · Memory · Evals · Roster'],
+      ['1 – 5', 'Dispatch · Briefing · Memory · Evals · Roster'],
     ],
   },
   {
@@ -74,7 +75,6 @@ export default function App() {
   const [help, setHelp] = useState(false);
   const [tour, setTour] = useState(false);
   const [overrideNonce, setOverrideNonce] = useState(0);
-  /** Run state to restore when the walkthrough ends. */
   const resumeAfterTour = useRef(false);
 
   // Hash routing keeps views linkable and survives a reload.
@@ -132,7 +132,7 @@ export default function App() {
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
-      if (e.key >= '1' && e.key <= '4') {
+      if (e.key >= '1' && e.key <= '5') {
         const next = VIEWS[Number(e.key) - 1];
         if (next) { e.preventDefault(); go(next); }
         return;
@@ -200,6 +200,7 @@ export default function App() {
 
   const body = useMemo(() => {
     switch (view) {
+      case 'briefing': return <Briefing />;
       case 'memory': return <Memory />;
       case 'evals': return <Evals />;
       case 'roster': return <Roster />;
@@ -246,7 +247,7 @@ export default function App() {
             <div className="help-body">
               <button type="button" className="tour-start" onClick={startTour}>
                 <span className="tour-start-title">Replay the walkthrough</span>
-                <span className="tour-start-sub">7 steps, about a minute</span>
+                <span className="tour-start-sub">{TOUR_STEPS.length} steps, about a minute</span>
               </button>
               {SHORTCUT_GROUPS.map((group) => (
                 <section key={group.title} className="help-group">

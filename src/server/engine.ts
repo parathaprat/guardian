@@ -1,5 +1,5 @@
 /**
- * SENTRY, the live operations engine.
+ * guard[ai]n, the live operations engine.
  *
  * Owns the running world, the memory, the agent, and the incident book, and
  * broadcasts everything as a typed `ServerEvent` stream.
@@ -11,9 +11,9 @@
  */
 
 import type {
-  AgentActionKind, CorrelationFinding, EventType, Incident, LearningPoint, Metrics,
-  OperatorFeedback, PlaybookProposal, PlaybookRule, Responder, RuleStatus, SecurityEvent,
-  SeededEvent, ServerEvent, SimControls, SimTime, Skill, Snapshot, TraceStep,
+  AgentActionKind, AskAnswer, Briefing, CorrelationFinding, EventType, Incident, IntakeParse,
+  LearningPoint, Metrics, OperatorFeedback, PlaybookProposal, PlaybookRule, Responder, RuleStatus,
+  SecurityEvent, SeededEvent, ServerEvent, SimControls, SimTime, Skill, Snapshot, TraceStep,
 } from '../shared/types';
 import { EMPTY_METRICS } from '../shared/types';
 import type { AgentContext, DispatchAgent, Memory } from './contracts';
@@ -22,11 +22,17 @@ import { createMemory } from './learn/index';
 import { createAgent, engineStatus, noteEngineCall } from './agent/index';
 import { requiredSkillFor } from './agent/tools';
 import { runReflection } from './agent/reflect';
+import { parseIntake } from './agent/intake';
+import { runHandover } from './agent/handover';
+import { runAsk } from './agent/ask';
 import { computeLearningCurve, computeMetrics } from './eval/metrics';
 import { runEval } from './eval/harness';
 import { runExperiment } from './eval/experiment';
 import { logIncident } from './util/eventlog';
-import { makeIdFactory } from './util/ids';
+import { highestSeq, makeIdFactory } from './util/ids';
+import { InMemoryRepository } from './store/index';
+import type { SemanticIndex } from './learn/semantic';
+import type { PersistedRun, Repository } from './contracts';
 import type { EvalRun, Experiment } from '../shared/types';
 
 const TICK_MS = 250;
@@ -36,6 +42,8 @@ const INCIDENT_CAP = 400;
 /** Resolved incidents between automatic reflection passes. */
 const REFLECT_EVERY = 25;
 const RETIRE_EVERY = 20;
+/** How often learned state is written back. Long, because it is a snapshot. */
+const MEMORY_FLUSH_MS = 10_000;
 
 interface PendingResolution {
   at: SimTime;
@@ -54,13 +62,7 @@ export class OpsEngine {
 
   private subscribers = new Set<(e: ServerEvent) => void>();
   private timer: NodeJS.Timeout | null = null;
-  /**
-   * 4× is the fastest default the hosted engine's free tier can actually keep
-   * up with: every alarm is one Gemini request, and 64× was generating them
-   * faster than the quota refills, so a console left open would spend the day's
-   * budget on alarms nobody was watching. 64× is still one click away when the
-   * point is to build up memory quickly.
-   */
+  /** 4x is the fastest default the hosted free tier keeps up with; 64x is one click away. */
   private speed = 4;
   private seed: number;
 
@@ -72,6 +74,19 @@ export class OpsEngine {
   private curve: LearningPoint[] = [];
   private lastEval: EvalRun | null = null;
   private proposals: PlaybookProposal[] = [];
+  private briefings: Briefing[] = [];
+  /** Sim time the last briefing covered up to, so the next one starts there. */
+  private lastBriefingAt: SimTime = 0;
+  private briefing = false;
+
+  /** Defaults in-memory so the engine works in an eval with no database attached. */
+  private repo: Repository = new InMemoryRepository();
+  private runId = 'mem-0';
+  /** Set when learned state has moved since the last flush. */
+  private memoryDirty = false;
+  private flushTimer: NodeJS.Timeout | null = null;
+  /** Semantic precedent, when a live deployment has an embedding service. */
+  private semantic: SemanticIndex | null = null;
 
   private nextIncidentId = makeIdFactory('INC');
   private resolvedSinceReflect = 0;
@@ -84,6 +99,96 @@ export class OpsEngine {
     this.sim = new WorldSimulator(seed);
     this.memory = createMemory(this.sim.world, this.sim.now(), seed);
     this.agent = createAgent();
+  }
+
+  // ── durability ────────────────────────────────────────────────────────────
+
+  /** Enable semantic precedent. Live console only; the eval never calls this. */
+  attachSemantic(index: SemanticIndex): void {
+    this.semantic = index;
+  }
+
+  /** Attach a repository and restore whatever it holds for this seed. Called once at boot, before `start()`. */
+  async attach(repo: Repository): Promise<void> {
+    this.repo = repo;
+    this.runId = await repo.openRun(this.seed);
+
+    const saved = await repo.load(this.seed);
+    if (saved) await this.hydrate(saved);
+
+    // Flushed on a timer, not per observation, serialising every calibration
+    // cell on each update would make the cheapest thing the agent does the most
+    // expensive. Controls ride the same timer so the persisted clock cannot lag
+    // the incidents being written by more than a flush interval.
+    this.flushTimer = setInterval(() => {
+      void this.flushMemory();
+      this.persist(() => this.repo.saveControls(this.runId, this.controls(), engineStatus()));
+    }, MEMORY_FLUSH_MS);
+    this.flushTimer.unref?.();
+  }
+
+  /**
+   * Restore what a restart should inherit: what the agent learned, the resolved
+   * history, and the clock. Not what was still in flight, see Decision 8 in
+   * `DECISIONS.md` for why.
+   */
+  private async hydrate(saved: PersistedRun): Promise<void> {
+    if (saved.memory) this.memory.restore(saved.memory);
+    if (saved.controls) this.eventsGenerated = saved.controls.eventsGenerated ?? 0;
+
+    // Resume to the newest instant anything actually happened rather than to the
+    // last persisted `simTime`, which is written on a timer and can trail by
+    // minutes. Events and incidents come back newest first.
+    const newestEvent = saved.events[0]?.ts ?? 0;
+    const newestIncident = saved.incidents.reduce(
+      (max, i) => Math.max(max, i.resolvedAt ?? i.createdAt), 0);
+    this.sim.seekTo(Math.max(saved.controls?.simTime ?? 0, newestEvent, newestIncident));
+
+    // Only resolved incidents come back: an in-flight one has no persisted
+    // `EventTruth` (deliberate, see Decision 1) so it can never settle, and
+    // would otherwise sit on the board forever as a "Deciding" that never lands.
+    this.feed = saved.events.slice(0, FEED_CAP);
+    this.incidents.clear();
+    this.order = [];
+    const resolved = saved.incidents.filter((i) => i.outcome !== null);
+    for (const i of [...resolved].reverse()) this.put(i); // put() prepends; reverse to land newest-first
+    for (const i of resolved) this.memory.precedent.index(i);
+
+    const swept = await this.repo.dropStrandedIncidents(this.runId).catch(() => 0);
+
+    // Resume past the run-wide max, not just the loaded window's max, or a new
+    // incident can silently upsert an old one.
+    this.nextIncidentId = makeIdFactory('INC',
+      Math.max(saved.maxIncidentSeq, highestSeq(saved.incidents.map((i) => i.id))));
+
+    this.briefings = saved.briefings;
+    if (saved.metrics) this.metrics = saved.metrics;
+    this.curve = saved.curve;
+
+    console.log(`[store] resumed ${resolved.length} resolved incident(s), `
+      + `${saved.events.length} event(s), ${saved.briefings.length} briefing(s)`
+      + (swept > 0 ? `, swept ${swept} interrupted mid-decision` : ''));
+  }
+
+  /** Write learned state if it has moved. Cheap when idle. */
+  private async flushMemory(): Promise<void> {
+    if (!this.memoryDirty) return;
+    this.memoryDirty = false;
+    await this.repo.saveMemory(this.runId, this.memory.snapshot());
+  }
+
+  /** Persist without letting a slow or broken store reach the tick loop. */
+  private persist(fn: () => Promise<void>): void {
+    void fn().catch(() => undefined);
+  }
+
+  async shutdown(): Promise<void> {
+    this.pause();
+    if (this.flushTimer) clearInterval(this.flushTimer);
+    this.memoryDirty = true;
+    await this.flushMemory();
+    await this.repo.saveControls(this.runId, this.controls(), engineStatus()).catch(() => undefined);
+    await this.repo.close();
   }
 
   // ── subscription ──────────────────────────────────────────────────────────
@@ -114,18 +219,25 @@ export class OpsEngine {
   start(): void {
     if (this.timer) return;
     this.timer = setInterval(() => this.tick(), TICK_MS);
-    this.emit({ type: 'controls', data: this.controls() });
+    this.announce();
   }
 
   pause(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    this.emit({ type: 'controls', data: this.controls() });
+    this.announce();
   }
 
   setSpeed(n: number): void {
     this.speed = Math.max(1, Math.min(256, Math.floor(n)));
-    this.emit({ type: 'controls', data: this.controls() });
+    this.announce();
+  }
+
+  /** Broadcast transport state and record it, so a restart resumes as it was. */
+  private announce(): void {
+    const c = this.controls();
+    this.persist(() => this.repo.saveControls(this.runId, c, engineStatus()));
+    this.emit({ type: 'controls', data: c });
   }
 
   reseed(seed: number): void {
@@ -141,16 +253,28 @@ export class OpsEngine {
     this.queue = [];
     this.pending = [];
     this.proposals = [];
+    this.briefings = [];
+    this.lastBriefingAt = 0;
     this.metrics = EMPTY_METRICS;
     this.curve = [];
     this.eventsGenerated = 0;
     this.nextIncidentId = makeIdFactory('INC');
+
+    // The stored world is dropped too. Leaving it would mean the next restart
+    // resurrected a world the operator explicitly threw away.
+    this.persist(async () => {
+      this.runId = await this.repo.openRun(seed);
+      await this.repo.clearRun(this.runId);
+    });
+
     this.emit({ type: 'snapshot', data: this.snapshot() });
     if (wasRunning) this.start();
   }
 
   resetMemory(): void {
     this.memory.reset();
+    this.memoryDirty = true;
+    this.persist(() => this.flushMemory());
     this.emit({ type: 'toast', data: { level: 'info', message: 'Memory wiped, the agent is learning from zero.' } });
     this.emit({ type: 'snapshot', data: this.snapshot() });
   }
@@ -173,6 +297,7 @@ export class OpsEngine {
     this.feed.unshift(seeded.event);
     if (this.feed.length > FEED_CAP) this.feed.pop();
     this.emit({ type: 'event', data: seeded.event });
+    this.persist(() => this.repo.saveEvent(this.runId, seeded.event));
 
     const incident: Incident = {
       id: this.nextIncidentId(),
@@ -191,7 +316,7 @@ export class OpsEngine {
       linkedIncidentIds: [],
     };
     this.put(incident);
-    this.emit({ type: 'incident', data: incident });
+    this.touch(incident);
     this.queue.push(seeded);
   }
 
@@ -204,6 +329,15 @@ export class OpsEngine {
       }
     }
     this.incidents.set(i.id, i);
+  }
+
+  /**
+   * An incident changed: tell the console and write it down. These always belong
+   * together, see Decision 8 in `DECISIONS.md` for the restart bug that taught it.
+   */
+  private touch(incident: Incident): void {
+    this.emit({ type: 'incident', data: incident });
+    this.persist(() => this.repo.saveIncident(this.runId, incident));
   }
 
   private drainQueue(): void {
@@ -277,6 +411,11 @@ export class OpsEngine {
       })),
       correlate: (e, w) => this.correlate(e, w),
       useMemory: true,
+      // Present only when an embedding service is configured. Absent is the
+      // normal case in dev and the only case in evals.
+      semantic: this.semantic
+        ? { similar: (e, k) => this.semantic!.similar(this.runId, e, k) }
+        : undefined,
       onTraceStep: (step: TraceStep) => {
         const inc = this.incidents.get(incidentId);
         if (inc) inc.trace.push(step);
@@ -321,7 +460,7 @@ export class OpsEngine {
       this.schedule(incident.id, 5 * 60_000);
     }
 
-    this.emit({ type: 'incident', data: incident });
+    this.touch(incident);
   }
 
   private applyDecision(incident: Incident, action: AgentActionKind): void {
@@ -420,6 +559,12 @@ export class OpsEngine {
       incident.event.ts, truth.isReal,
     );
     this.memory.precedent.index(incident);
+    // Embedded once, here, when the incident has both its text and its outcome
+    // and is therefore precedent for something. Fire and forget: an embedding
+    // service that is slow or down must not hold up resolution.
+    if (this.semantic) {
+      this.persist(() => this.semantic!.index(this.runId, incident));
+    }
 
     const firedRules = incident.decision.evidence
       .filter((e) => e.kind === 'playbook')
@@ -430,7 +575,7 @@ export class OpsEngine {
     }
 
     void logIncident(incident);
-    this.emit({ type: 'incident', data: incident });
+    this.touch(incident);
 
     this.resolvedSinceReflect += 1;
     this.resolvedSinceRetire += 1;
@@ -462,6 +607,9 @@ export class OpsEngine {
     const all = this.allIncidents();
     this.metrics = computeMetrics({ incidents: all });
     this.curve = computeLearningCurve(all, 25);
+    // Every path that reaches here has just folded an outcome into memory.
+    this.memoryDirty = true;
+    this.persist(() => this.repo.saveMetrics(this.runId, this.metrics, this.curve));
     this.emit({ type: 'metrics', data: { metrics: this.metrics, learningCurve: this.curve } });
     this.emit({
       type: 'memory',
@@ -473,6 +621,10 @@ export class OpsEngine {
   }
 
   private emitPlaybook(): void {
+    // A rule approved or retired is a human decision, so it is flushed at once
+    // rather than waiting for the timer.
+    this.memoryDirty = true;
+    this.persist(() => this.flushMemory());
     this.emit({
       type: 'playbook',
       data: { playbook: this.memory.playbook.rules(), proposals: this.allProposals() },
@@ -508,7 +660,7 @@ export class OpsEngine {
       this.memory.playbook.noteApplied(firedRules);
     }
 
-    this.emit({ type: 'incident', data: incident });
+    this.touch(incident);
     this.recompute();
     this.emitPlaybook();
   }
@@ -565,6 +717,79 @@ export class OpsEngine {
     const seeded = this.sim.injectAt(type, zoneId);
     this.ingest(seeded);
     this.drainQueue();
+  }
+
+  // ── language surfaces ─────────────────────────────────────────────────────
+
+  /**
+   * Parse a radio call. Deliberately does not raise anything: the operator sees
+   * the parse and confirms it, because an intake that dispatches on its own
+   * first reading is an intake that will eventually dispatch on a bad one.
+   */
+  async parseIntake(transcript: string): Promise<IntakeParse> {
+    return parseIntake({
+      transcript,
+      world: this.sim.world,
+      incidents: this.allIncidents(),
+      agentEngine: this.agent.engine,
+    });
+  }
+
+  /** Commit a confirmed parse as a real event, carrying the caller's own words. */
+  intakeDispatch(type: EventType, zoneId: string, description: string, sourceKind: SecurityEvent['sourceKind']): Incident {
+    const seeded = this.sim.injectAt(type, zoneId, this.sim.now(), {
+      description,
+      sourceKind,
+      sourceName: 'Radio intake',
+    });
+    this.ingest(seeded);
+    this.drainQueue();
+    const incident = this.byEvent(seeded.event.id);
+    if (!incident) throw new Error('intake event did not produce an incident');
+    return incident;
+  }
+
+  async briefNow(): Promise<Briefing> {
+    if (this.briefing) throw new Error('A briefing is already being written.');
+    this.briefing = true;
+    try {
+      const briefing = await runHandover({
+        incidents: this.allIncidents(),
+        memory: this.memory,
+        world: this.sim.world,
+        metrics: this.metrics,
+        now: this.sim.now(),
+        since: this.lastBriefingAt,
+        agentEngine: this.agent.engine,
+      });
+      this.lastBriefingAt = this.sim.now();
+      this.briefings = [briefing, ...this.briefings].slice(0, 12);
+      this.persist(() => this.repo.saveBriefing(this.runId, briefing));
+      this.emit({ type: 'briefings', data: this.briefings });
+      this.emit({
+        type: 'toast',
+        data: {
+          level: 'info',
+          message: briefing.degraded
+            ? 'Handover written by the deterministic pass.'
+            : `Handover written from ${briefing.calls} model calls covering ${briefing.incidentsCovered} incident(s).`,
+        },
+      });
+      return briefing;
+    } finally {
+      this.briefing = false;
+    }
+  }
+
+  async ask(question: string): Promise<AskAnswer> {
+    return runAsk({
+      question,
+      incidents: this.allIncidents(),
+      memory: this.memory,
+      world: this.sim.world,
+      metrics: this.metrics,
+      agentEngine: this.agent.engine,
+    });
   }
 
   /**
@@ -634,6 +859,7 @@ export class OpsEngine {
       playbook: this.memory.playbook.rules(),
       proposals: this.allProposals(),
       lastEval: this.lastEval,
+      briefings: this.briefings,
     };
   }
 }

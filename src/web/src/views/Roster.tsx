@@ -63,12 +63,14 @@ export default function Roster() {
 
         <Panel bodyClassName="roster-body">
           {guards.length === 0 ? <EmptyState title="No roster" /> : (
+            /* Scrolled inside its own panel, not the page: the document is
+               clipped horizontally by design, so overflow has nowhere else to go. */
+            <div className="tbl-wrap">
             <table className="tbl roster-tbl">
               <thead>
                 <tr>
                   <th>Guard</th><th>Site</th><th>Shift</th><th>Skills</th><th>Status</th>
-                  {/* Mean, not median: responders.ts keeps Welford running
-                      stats, and the mean is the term that feeds the score. */}
+                  {/* Mean, not median: Welford running stats feed the score with the mean. */}
                   <th className="r">Accept rate</th><th className="r">Mean response</th>
                   <th className="r">Resolved</th><th className="r">Dispatches</th>
                 </tr>
@@ -81,7 +83,7 @@ export default function Roster() {
                       <td>
                         <div className="row gap2">
                           <span className="avatar" aria-hidden>{initials(g.name)}</span>
-                          <div className="col">
+                          <div className="col roster-name">
                             <span>{g.name}</span>
                             <span className="mono muted roster-badge">{g.badge} · {zoneName(g.currentZoneId)}</span>
                           </div>
@@ -97,10 +99,8 @@ export default function Roster() {
                         </div>
                       </td>
                       <td><ResponderStatusDot status={g.status} /></td>
-                      {/* Before the first offer this is the 2/1 prior, not an
-                          observation. It still ranks, so it is shown, but it is
-                          dimmed: 67% next to a hard 89% otherwise reads as a
-                          measurement nobody took. */}
+                      {/* Before any offers this is the 2/1 prior, not an observation;
+                          dimmed so it doesn't read as a real measurement. */}
                       <td className="r">
                         {m ? (
                           <div
@@ -114,15 +114,26 @@ export default function Roster() {
                       </td>
                       <td className="r mono">{m && m.responseCount > 0 ? fmtDuration(m.responseMeanMs) : '-'}</td>
                       <td className="r mono">{m && m.dispatches > 0 ? fmtPct(m.pResolve) : '-'}</td>
+                      {/* Marker only shows once dispatches > 0: at zero the dimmed
+                          accept-rate cell already says "no observations", and
+                          `exploring` (dispatches < 5) would otherwise mark every row. */}
                       <td className="r mono">
                         {m?.dispatches ?? 0}
-                        {m?.exploring && <Pill tone="accent" className="roster-explore">exploring</Pill>}
+                        {m && m.exploring && m.dispatches > 0 && (
+                          <abbr
+                            className="roster-explore"
+                            title="Under five dispatches, so ranking samples this responder's posterior instead of trusting its mean"
+                          >
+                            exploring
+                          </abbr>
+                        )}
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </Panel>
         <p className="view-caption">
@@ -146,6 +157,7 @@ export default function Roster() {
         </div>
         <Panel bodyClassName="roster-body">
           {world.robots.length === 0 ? <EmptyState title="No fleet" /> : (
+            <div className="tbl-wrap">
             <table className="tbl roster-tbl">
               <thead>
                 <tr><th>Robot</th><th>Model</th><th>Site</th><th>Patrol</th><th>Battery</th><th>Status</th></tr>
@@ -168,6 +180,7 @@ export default function Roster() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </Panel>
         <div className="view-note">

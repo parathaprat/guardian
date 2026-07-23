@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Header, the Calvis nav, adapted to an ops console.
+   Header.
 
    Nav sits next to the wordmark rather than on the page's optical centre.
    True centring needs 2 × the widest cluster plus the tab bar, which is about
@@ -7,6 +7,10 @@
    but under the status cluster. Reading order left to right is now brand, then
    where you are, then what the system is doing, and the clusters can never
    collide because none of them shrink and the free space sits between them.
+
+   The left cluster is the logotype and nothing else. It used to carry a second
+   product block beside a rule, which said the same thing the tab bar already
+   said and was the first casualty at every breakpoint anyway.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .hdr {
@@ -30,22 +34,24 @@
   min-width: 0;
 }
 
+/* The logotype. Lowercase and tightly set, with the bracketed [ai] carrying the
+   single accent on the screen that is not an alarm. The brackets are literal
+   characters rather than drawn marks so the mark survives copy, paste and a
+   screen reader without a separate alt text. */
 .hdr-word {
   display: inline-flex;
-  align-items: flex-end;
+  align-items: baseline;
   font-weight: 700;
-  font-size: 18px;
+  font-size: clamp(19px, 1.25vw, 24px);
   line-height: 1;
-  letter-spacing: var(--tracking-tight);
-  text-transform: uppercase;
+  letter-spacing: -0.035em;
   color: var(--text-primary);
   white-space: nowrap;
 }
-.hdr-word .dot-accent {
-  width: 7px;
-  height: 7px;
-  margin-left: 5px;
-  margin-bottom: 1px;
+.hdr-word-ai {
+  color: var(--accent);
+  letter-spacing: -0.06em;
+  padding: 0 0.02em;
 }
 
 .hdr-rule {
@@ -54,15 +60,6 @@
   height: 22px;
   background: var(--line);
 }
-
-.hdr-product {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.hdr-name { color: var(--text-primary); }
-.hdr-desc { font-size: 9px; }
 
 /* ── Nav ────────────────────────────────────────────────────────────────── */
 
@@ -85,7 +82,7 @@
   gap: 7px;
   padding: 0 2px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   font-weight: 500;
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
@@ -125,13 +122,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 16px;
+  min-width: 19px;
+  height: 17px;
   padding: 0 4px;
   border: var(--hair) solid var(--line-strong);
   background: var(--surface-sunken);
   color: var(--text-secondary);
-  font-size: 9px;
+  font-size: var(--fs-micro);
   font-weight: 700;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
@@ -181,7 +178,7 @@
 .hdr-live[data-state='lost'] { background: var(--status-crit); }
 
 .hdr-clock-v {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1;
   letter-spacing: 0.01em;
   white-space: nowrap;
@@ -198,7 +195,7 @@
 
 .hdr-play,
 .hdr-sq { width: 26px; padding: 0; }
-.hdr-sq { font-family: var(--font-mono); font-size: 11px; }
+.hdr-sq { font-family: var(--font-mono); font-size: var(--fs-xs); }
 
 .hdr-seg {
   display: inline-flex;
@@ -211,7 +208,7 @@
   padding: 0 6px;
   border-right: var(--hair) solid var(--line-strong);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   letter-spacing: var(--tracking-micro);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
@@ -239,7 +236,7 @@
   border-bottom: var(--hair) solid transparent;
   background: transparent;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   line-height: 1;
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
@@ -259,12 +256,12 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
-  padding: 0 8px;
+  height: 24px;
+  padding: 0 9px;
   border: var(--hair) solid var(--line-strong);
   background: var(--surface);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-micro);
   letter-spacing: var(--tracking-micro);
   text-transform: uppercase;
   color: var(--text-secondary);
@@ -321,7 +318,7 @@
   padding: 3px 0;
 }
 .hdr-pop-v {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-primary);
   text-align: right;
   overflow: hidden;
@@ -338,7 +335,7 @@
   margin: var(--s3) 0 0;
   padding-top: var(--s2);
   border-top: var(--hair) solid var(--line);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.4;
   color: var(--status-warn);
 }
@@ -348,10 +345,6 @@
    having slack, read off screenshots at 2560 / 1920 / 1600 / 1470 / 1280 /
    1150 / 1024 / 900, not guessed from round numbers. Order is by how much the
    operator loses: a strapline first, the seed last before the nav rewraps. */
-
-@media (max-width: 1560px) {
-  .hdr-desc { display: none; }
-}
 
 @media (max-width: 1400px) {
   .hdr { gap: var(--s2) var(--s5); padding-left: var(--s4); }
@@ -365,19 +358,20 @@
 }
 
 @media (max-width: 1140px) {
-  /* The product block is the last decorative thing standing. */
-  .hdr-product, .hdr-left .hdr-rule { display: none; }
   .hdr-seg-b { min-width: 26px; padding: 0 4px; }
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1100px) {
   /* Which engine is answering still matters; which checkpoint does not. */
   .hdr-engine-model { display: none; }
 }
 
 /* Below this nothing sheds gracefully any further, so the nav takes its own
-   row. A console that wraps is readable; a console that overlaps is not. */
-@media (max-width: 920px) {
+   row. A console that wraps is readable; a console that overlaps is not.
+
+   Measured, not guessed: at 1024 with the nav still inline the theme toggle
+   ran off the right edge of the window with no way to reach it. */
+@media (max-width: 1060px) {
   .hdr {
     flex-wrap: wrap;
     height: auto;

@@ -1,16 +1,7 @@
 /**
- * SENTRY, A/B eval harness.
- *
- * This file is the evidence behind the product claim. It is written to be
- * attacked: an event stream is generated exactly once and replayed verbatim by
- * every arm, each arm gets its own freshly-seeded simulator so no arm inherits
- * another's responder state, and the only thing that varies between arms is the
- * memory available to the judgment layer.
- *
- * Learning is *online*: each event is decided first, then resolved, and only
- * then folded back into that arm's memory. No arm ever sees an outcome before
- * it has committed to a decision, and the learned arm's pre-training stream is
- * strictly disjoint from the scored stream.
+ * guard[ai]n, A/B eval harness: one event stream, replayed verbatim by three
+ * freshly-seeded arms that differ only in memory. Learning is online, decide
+ * then resolve then learn, so no arm sees an outcome before deciding. See DECISIONS.md.
  */
 
 import type {
@@ -62,10 +53,9 @@ const evalRunId = makeIdFactory('EVR');
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * The rule table a real ops centre ships on day one: a fixed severity per event
- * type, a fixed action per severity band, nearest available body. It has no
- * idea that dock camera 4 cries wolf every night at 02:00, and it never will,
- * which is precisely the gap the learned arm has to prove it closes.
+ * The rule table a real ops centre ships on day one: fixed severity per type,
+ * fixed action per band, nearest available body. It never learns dock camera 4
+ * cries wolf nightly, that gap is what the learned arm has to prove it closes.
  */
 const STATIC_SEVERITY: Record<EventType, Severity> = {
   motion_detected: 1,
@@ -477,15 +467,10 @@ function clamp01(n: number): number {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Deep-copy the live memory's *state* onto a freshly constructed Memory built
- * against `world`.
- *
- * structuredClone would strip the prototypes and leave us with method-less
- * husks, and the stores expose no serialise/load pair, so we copy own fields and
- * re-point anything that is a world entity (guard, robot, zone, site) at the
- * eval world's instance of it, matched by id, which the id factories make
- * stable across worlds. Everything else is copied by value, so the eval and the
- * live console cannot observe each other.
+ * Deep-copies the live memory's state onto a Memory built against `world`.
+ * structuredClone would strip prototypes into method-less husks, so fields are
+ * copied by hand and world entities re-pointed at this world's instance by id;
+ * everything else is copied by value, isolating eval from the live console.
  */
 function cloneMemory(src: Memory, world: WorldState, now: SimTime, seed: number): Memory {
   const dst = createMemory(world, now, seed);
@@ -716,10 +701,9 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalRun> {
 }
 
 /**
- * Train `memory` on events the scored run will never see: the same world, the
- * same generator, but the slice that comes *after* the test stream. Using a
- * different seed would build a different building, which would teach the agent
- * the wrong priors; using the same slice would be training on the test set.
+ * Trains `memory` on events the scored run never sees: same world and
+ * generator, but the slice after the test stream. A different seed would teach
+ * wrong priors; the same slice would be training on the test set.
  */
 async function warmUp(
   seed: number, memory: Memory, skip: number, count: number,
@@ -811,7 +795,7 @@ function buildNotes(args: {
   lines.push('');
   lines.push(`THREATS TO VALIDITY`);
   lines.push(`• Not paired: resolve() and offerDispatch() draw from each arm's simulator RNG, and different arms make different decisions, so accept/arrival rolls diverge between arms. responderAcceptRate and medianResponseMs carry a few points of noise; falseDispatchRate and missedCriticalRate do not depend on those rolls.`);
-  lines.push(`• The simulator is the world. Every number here is a claim about SENTRY's behaviour inside a model whose regularities SENTRY was designed to find. It is evidence that the learning loop closes, not a field trial.`);
+  lines.push(`• The simulator is the world. Every number here is a claim about guard[ai]n's behaviour inside a model whose regularities guard[ai]n was designed to find. It is evidence that the learning loop closes, not a field trial.`);
   if (args.liveMemory) {
     lines.push(`• The learned arm's memory came from the live console, which has been running its own stream. Its calibration is therefore fitted to a history this eval did not generate.`);
   }

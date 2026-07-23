@@ -1,11 +1,7 @@
 /**
- * The physical portfolio, and the hidden structure inside it.
- *
- * Topology (sites, zones, adjacency, rosters, ids) is a *constant*, it does not
- * vary with the seed. Two things depend on it and would break if it did: the
- * REGULARITIES below reference concrete zone and robot ids, and the eval harness
- * compares runs across seeds. The seed only jitters hidden per-responder truth,
- * battery, and starting positions.
+ * The physical portfolio and its hidden structure. Topology (sites, zones,
+ * adjacency, rosters, ids) is constant across seeds, REGULARITIES reference
+ * concrete ids and the eval compares runs by seed. Only per-responder truth is seeded.
  */
 
 import type {
@@ -59,8 +55,6 @@ interface ZoneSpec {
 }
 
 const ZONE_SPECS: ZoneSpec[] = [
-  // Harborview, a fenced yard: gate north, fence line west, dock row across the
-  // middle, trailer lot east, service corridor and admin block to the south.
   { id: 'hbv-gate-north', siteId: 'hbv', name: 'North Gate', code: 'G-1', kind: 'perimeter', x: 0.50, y: 0.07, baseRisk: 0.46 },
   { id: 'hbv-perimeter-west', siteId: 'hbv', name: 'Perimeter West', code: 'PW', kind: 'perimeter', x: 0.07, y: 0.46, baseRisk: 0.58 },
   { id: 'hbv-dock-1', siteId: 'hbv', name: 'Dock D-1', code: 'D-1', kind: 'loading_dock', x: 0.30, y: 0.33, baseRisk: 0.42 },
@@ -69,7 +63,6 @@ const ZONE_SPECS: ZoneSpec[] = [
   { id: 'hbv-utility-1', siteId: 'hbv', name: 'Utility Corridor U-1', code: 'U-1', kind: 'utility', x: 0.46, y: 0.62, baseRisk: 0.24 },
   { id: 'hbv-lobby-2', siteId: 'hbv', name: 'Admin Lobby L-2', code: 'L-2', kind: 'lobby', x: 0.28, y: 0.88, baseRisk: 0.22 },
 
-  // Mercer Tower, a vertical stack with Stairwell A as the spine.
   { id: 'mcr-roof-1', siteId: 'mcr', name: 'Roof R-1', code: 'R-1', kind: 'roof', x: 0.50, y: 0.08, baseRisk: 0.40 },
   { id: 'mcr-server-s2', siteId: 'mcr', name: 'Server Room S-2', code: 'S-2', kind: 'server_room', x: 0.44, y: 0.40, baseRisk: 0.66 },
   { id: 'mcr-stair-a', siteId: 'mcr', name: 'Stairwell A', code: 'SW-A', kind: 'stairwell', x: 0.76, y: 0.46, baseRisk: 0.30 },
@@ -77,7 +70,6 @@ const ZONE_SPECS: ZoneSpec[] = [
   { id: 'mcr-deck-p2', siteId: 'mcr', name: 'Deck P-2', code: 'P-2', kind: 'parking', x: 0.20, y: 0.62, baseRisk: 0.46 },
   { id: 'mcr-dock-b', siteId: 'mcr', name: 'Service Dock B', code: 'SD-B', kind: 'loading_dock', x: 0.14, y: 0.92, baseRisk: 0.36 },
 
-  // Northgate, two retail wings either side of a central atrium.
   { id: 'ngt-dock-c', siteId: 'ngt', name: 'Dock C-2', code: 'C-2', kind: 'loading_dock', x: 0.12, y: 0.18, baseRisk: 0.38 },
   { id: 'ngt-floor-north', siteId: 'ngt', name: 'Retail Floor North', code: 'RF-N', kind: 'retail_floor', x: 0.36, y: 0.32, baseRisk: 0.34 },
   { id: 'ngt-atrium', siteId: 'ngt', name: 'Atrium Entrance', code: 'A-1', kind: 'lobby', x: 0.56, y: 0.52, baseRisk: 0.28 },
@@ -182,15 +174,9 @@ const ROBOT_SPECS: RobotSpec[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * A hidden rule of the world. NEVER serialise these into a prompt, a snapshot,
- * or a tool result: the entire experiment is whether the agent can recover them
- * from resolved outcomes alone.
- *
- * `pReal`       , P(event is genuine) when this regularity is the most specific match.
- * `severityBias`, additive offset on the type's mean true severity, for real events only.
- * `note`        , the ground-truth explanation for the *dominant* mode (real if
- *                  pReal >= 0.5, false otherwise). Surfaced in the UI only after
- *                  an incident resolves.
+ * A hidden rule of the world. NEVER serialise these into a prompt, snapshot, or
+ * tool result, the experiment is whether the agent can recover them from
+ * resolved outcomes alone. `note` is surfaced in the UI only after resolution.
  */
 export interface Regularity {
   id: string;

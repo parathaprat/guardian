@@ -1,0 +1,8 @@
+# Pinned, because an embedding model that silently changes version changes every
+# vector in the database and nothing in the schema says so.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+sentence-transformers==3.3.1
+# CPU wheels only. The GPU build is roughly 2GB of CUDA nobody here uses.
+torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu

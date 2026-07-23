@@ -1,11 +1,7 @@
 /**
- * SENTRY chart kit, hand-rolled inline SVG, no chart library.
- *
- * Colours are emitted as `var(--token)` rather than resolved values so a theme
- * swap costs nothing and no component ever hardcodes a hex. Scales come from
- * the validated palette in tokens.css: categorical `--series-1..3` (max three,
- * fixed order), the ordinal `--arm-1..3` ramp for the eval arms, and the
- * sequential `--seq-1..5` ramp for probability magnitude.
+ * guard[ai]n chart kit, hand-rolled inline SVG, no chart library. Colours are
+ * emitted as `var(--token)` so a theme swap costs nothing and no component
+ * hardcodes a hex.
  */
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -113,8 +109,15 @@ function ringArc(cx: number, cy: number, rOut: number, rIn: number, a0: number, 
     `L${i1.x} ${i1.y}A${rIn} ${rIn} 0 ${large} 0 ${i0.x} ${i0.y}Z`;
 }
 
-/** Approximate mono-glyph truncation, cheaper than measuring, close enough at 9px. */
-function truncateToWidth(s: string, px: number, charPx = 5.7): string {
+/**
+ * Clip a label to a pixel budget. `charPx` is the ceiling glyph advance for the
+ * mono `--fs-micro` axis text: that token is a `clamp()`, which can't be read
+ * back resolved, so erring high (truncate a bit early) beats erring low (text
+ * overruns into the plot).
+ */
+const AXIS_CHAR_PX = 7.8;
+
+function truncateToWidth(s: string, px: number, charPx = AXIS_CHAR_PX): string {
   const max = Math.floor(px / charPx);
   if (s.length <= max) return s;
   return max <= 1 ? '…' : `${s.slice(0, max - 1)}…`;
@@ -771,7 +774,7 @@ function seqFill(value: number, observations: number): string {
 }
 
 export function Heatmap({
-  rows, cols, cells, cellHeight = 22, labelWidth = 104,
+  rows, cols, cells, cellHeight = 26, labelWidth = 150,
   valueFormat = (v) => `${Math.round(v * 100)}%`,
   uncertaintyThreshold = 0.16, legend = true, legendLabel = 'P(real)',
   title = 'Calibration grid', emptyLabel = 'No observations yet', className, onCellClick,
@@ -1073,10 +1076,7 @@ export interface MetricTileProps {
   deltaFormat?: (n: number) => string;
   /** Names the baseline, e.g. "vs static". */
   deltaLabel?: string;
-  /**
-   * Which direction is an improvement. Rendered as text next to the delta so
-   * the reader never has to infer it from colour.
-   */
+  /** Which direction is an improvement; rendered as text so colour alone never carries it. */
   lowerIsBetter?: boolean;
   spark?: number[];
   sparkClamp01?: boolean;

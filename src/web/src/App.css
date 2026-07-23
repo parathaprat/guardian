@@ -36,7 +36,7 @@
   padding: var(--s2) var(--s5);
   background: var(--status-crit-wash);
   border-bottom: var(--hair) solid var(--line);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-secondary);
 }
 
@@ -64,13 +64,13 @@
   max-width: 44ch;
   margin: 0;
   color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--fs-sm);
+  line-height: 1.65;
 }
 
 .app-boot-copy code {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: 1px 5px;
   background: var(--paper-3);
   color: var(--text-primary);
@@ -91,7 +91,7 @@
 }
 
 .help-card {
-  width: min(440px, 100%);
+  width: min(480px, 100%);
   max-height: 100%;
   overflow-y: auto;
   background: var(--surface);
@@ -105,7 +105,7 @@
 
 .help-row {
   display: grid;
-  grid-template-columns: 82px 1fr;
+  grid-template-columns: calc(var(--fs-micro) * 8) 1fr;
   gap: var(--s3);
   align-items: center;
   padding: 6px 0;
@@ -113,4 +113,4 @@
 }
 .help-row:last-child { border-bottom: none; }
 .help-row dt { margin: 0; }
-.help-row dd { margin: 0; font-size: 12px; color: var(--text-secondary); }
+.help-row dd { margin: 0; font-size: var(--fs-sm); color: var(--text-secondary); }

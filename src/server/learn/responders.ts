@@ -1,14 +1,7 @@
 /**
- * CHANNEL B, the responder model, as a contextual bandit.
- *
- * Per responder we keep Beta posteriors on P(accept) and P(resolves correctly)
- * plus Welford running stats on response time. Ranking blends those with the
- * incident context (ETA, required skill). With `explore` on we Thompson-sample
- * the two Beta posteriors instead of using their means, which is what lets the
- * roster view honestly distinguish exploring from exploiting.
- *
- * None of the `truth` fields on Guard/Robot are read here. Everything in this
- * file is learned from revealed outcomes.
+ * CHANNEL B, the responder model: a contextual bandit. Beta posteriors on
+ * P(accept)/P(resolve) plus Welford response-time stats, Thompson-sampled
+ * when exploring. See DECISIONS.md. `truth` fields on Guard/Robot are never read.
  */
 
 import type {
@@ -28,7 +21,6 @@ const ACCEPT_BETA0 = 1;
 const RESOLVE_ALPHA0 = 2;
 const RESOLVE_BETA0 = 1;
 
-/** Below this many dispatches the model is still exploring. */
 const EXPLORE_UNTIL = 5;
 
 /** Response time at which the speed term bottoms out (15 sim-minutes). */
@@ -248,6 +240,16 @@ export class Responders implements ResponderStore {
     this.seedRoster();
   }
 
+  /**
+   * Replaces every posterior. Seeds the roster first so a responder added since
+   * the last snapshot still gets its 2/1 prior.
+   */
+  restore(models: ResponderModel[]): void {
+    this.models_.clear();
+    this.seedRoster();
+    for (const m of models) this.models_.set(m.responderId, { ...m });
+  }
+
   // ── internals ─────────────────────────────────────────────────────────────
 
   /** Pre-create a model per responder so the roster view is populated at t=0. */
@@ -320,7 +322,7 @@ export class Responders implements ResponderStore {
     if (explore && model.exploring) {
       parts.push(
         `chosen with only ${model.dispatches} previous dispatch${model.dispatches === 1 ? '' : 'es'} on record, ` +
-        `Sentry gives under-used responders a turn rather than always sending the same person ` +
+        `Guardian gives under-used responders a turn rather than always sending the same person ` +
         `(${pct(pAccept)} chance of accepting)`,
       );
       parts.push(`ETA ${fmtDur(etaMs)}`);

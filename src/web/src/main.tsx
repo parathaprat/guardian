@@ -4,7 +4,7 @@ import App from './App';
 import './styles/base.css';
 
 const host = document.getElementById('root');
-if (!host) throw new Error('SENTRY: #root missing from index.html');
+if (!host) throw new Error('guard[ai]n: #root missing from index.html');
 
 createRoot(host).render(
   <StrictMode>

@@ -2,10 +2,8 @@
  * npm run eval -- --seed 42 --events 400 [--llm] [--assert]
  * npm run eval -- --seeds 20 --events 400 [--assert]
  *
- * Runs the A/B replay outside the console so the result can be checked in CI or
- * pasted into a review without trusting a screenshot. With `--seeds N` it runs
- * the multi-world experiment instead and reports a confidence interval, which
- * is the only form of the result worth quoting.
+ * Runs the A/B replay outside the console for CI. `--seeds N` runs the
+ * multi-world experiment instead and reports a confidence interval.
  */
 
 import 'dotenv/config';
@@ -53,7 +51,7 @@ function pad(s: string, n: number): string {
 async function runExperimentMode(baseSeed: number, events: number, useLlm: boolean): Promise<void> {
   const seedCount = arg('seeds', 20);
 
-  console.log(`\n${B}SENTRY${R} ${ORANGE}■${R}  multi-world learning experiment`);
+  console.log(`\n${B}guard[ai]n${R} ${ORANGE}■${R}  multi-world learning experiment`);
   console.log('─'.repeat(76));
   console.log(`${DIM}base seed ${baseSeed} · ${seedCount} worlds · ${events} events each · judgment: ${useLlm ? 'hosted model' : 'Reasoner (deterministic)'}${R}\n`);
 
@@ -135,7 +133,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log(`\n${B}SENTRY${R} ${ORANGE}■${R}  A/B replay evaluation`);
+  console.log(`\n${B}guard[ai]n${R} ${ORANGE}■${R}  A/B replay evaluation`);
   console.log('─'.repeat(76));
   console.log(`${DIM}seed ${seed} · ${events} events · judgment: ${useLlm ? 'hosted model' : 'Reasoner (deterministic)'}${R}\n`);
 

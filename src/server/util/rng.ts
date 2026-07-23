@@ -1,9 +1,7 @@
 /**
- * Seeded PRNG (mulberry32).
- *
- * Every stochastic decision in the world model runs through one of these. The
- * whole "prove it got smarter" claim rests on being able to replay an identical
- * event stream, so nothing in simulation or memory may touch Math.random().
+ * Seeded PRNG (mulberry32). Every stochastic decision in the world model runs
+ * through one of these; nothing in simulation or memory may touch
+ * Math.random(), that's the precondition for byte-identical replay.
  */
 
 /** FNV-1a, 32-bit. Used to turn string salts into stream seeds. */
@@ -97,10 +95,9 @@ export class Rng {
   }
 
   /**
-   * An independent stream keyed off (parent seed, salt). Derived from the seed
-   * rather than the current state so that subsystems consuming different amounts
-   * of entropy can never perturb each other, that is what keeps a live tick
-   * loop with jittery frame timing from changing the event stream.
+   * Independent stream keyed off (parent seed, salt), not current state, so
+   * subsystems consuming different amounts of entropy can never perturb each
+   * other, and jittery frame timing in a live tick loop can't change the event stream.
    */
   fork(salt: number | string): Rng {
     const h = typeof salt === 'number' ? Math.imul(salt | 0, 0x9e3779b1) >>> 0 : hashString(salt);

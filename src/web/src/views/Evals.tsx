@@ -128,7 +128,7 @@ export default function Evals() {
                 Raise the sim speed in the header and let it run.
               </EmptyState>
             : <LineChart
-                height={220}
+                height={280}
                 clamp01
                 area
                 endLabels
@@ -147,14 +147,9 @@ export default function Evals() {
 }
 
 /**
- * The multi-world experiment.
- *
- * A single seeded run answers "did learning win in this world". Because
- * learning is online, that number is a draw from a distribution, so one run
- * cannot distinguish a real effect from a lucky ordering. This runs the same
- * protocol across many independent worlds and reports the interval. If the
- * interval spans zero, the panel says the result is not established rather
- * than quoting the best world.
+ * Multi-world experiment: a single seeded run can't distinguish a real learning
+ * effect from a lucky ordering, so this replays the protocol across many worlds
+ * and reports the interval, flagging when it spans zero.
  */
 function ExperimentSection() {
   const [exp, setExp] = useState<Experiment | null>(null);
@@ -342,7 +337,7 @@ function Results({ run, onlyDisagree, setOnlyDisagree }: {
           series={ARM_SERIES}
           palette="arm"
           yMax={1}
-          height={260}
+          height={320}
           format={(v) => fmtPct(v)}
         />
       </Panel>
@@ -362,6 +357,7 @@ function Results({ run, onlyDisagree, setOnlyDisagree }: {
           {rows.length === 0
             ? <EmptyState title="Nothing to show">Every sampled decision in this arm was correct.</EmptyState>
             : (
+              <div className="tbl-wrap">
               <table className="tbl">
                 <thead>
                   <tr><th>Zone</th><th>Event</th><th>Action</th><th>Real</th><th className="r">Verdict</th></tr>
@@ -382,6 +378,7 @@ function Results({ run, onlyDisagree, setOnlyDisagree }: {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
         </Panel>
       </div>

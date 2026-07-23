@@ -1,40 +1,7 @@
 /**
- * The Gemini provider.
- *
- * Google exposes Gemini behind an OpenAI-shaped `/chat/completions` endpoint, so
- * this talks to that rather than to the native `generateContent` API. Two
- * reasons: the free tier is the most generous of the hosted options by a wide
- * margin, which is what makes a live demo possible at all, and the compatibility
- * layer keeps the request shape identical to every other OpenAI-dialect endpoint,
- * so the same file would point at a different vendor with one URL change.
- *
- * Two deliberate choices:
- *
- *   - **`fetch`, not an SDK.** The request is one documented JSON body and the
- *     response is one documented JSON body. A dependency would buy retries,
- *     which are twenty lines here, and cost control over the exact error text
- *     that reaches the trace inspector, which is the surface this whole product
- *     is about.
- *   - **Capability probing, not a model allowlist.** Schema-constrained output
- *     is not available on every model or every compatibility layer, and a
- *     hard-coded list of which is which rots on contact. The first reflection
- *     request asks for it; a 400 that names the feature switches it off for the
- *     rest of the process and the schema is enforced by the prompt instead. No
- *     reasoning controls are sent at all: Gemini 2.5 thinks by default, and the
- *     knobs for it are the least portable part of the dialect.
- *
- * On rate limits, which are a design constraint on any free tier rather than an
- * edge case: a metered endpoint counts the *requested* completion budget against
- * its meter, not just the tokens actually produced, so unused headroom is paid
- * for in throughput. This provider reads whatever budget the endpoint reports in
- * its response headers and refuses locally when the next call cannot fit, so an
- * incident falls back to the Reasoner in a millisecond instead of stalling the
- * queue and then failing anyway. An endpoint that reports no such headers simply
- * never registers pressure, and nothing else changes.
- *
- * The same arithmetic is why `loop.ts` runs one-shot here: an agentic loop
- * re-sends the fixed prompt every turn, which turned a decision into more tokens
- * than a whole minute's allowance on the tier this was first measured against.
+ * The Gemini provider, talking to Google's OpenAI-compatible `/chat/completions` endpoint rather
+ * than the native API (see DECISIONS.md Decision 8). Plain `fetch`, no SDK: capability probing
+ * (a 400 naming a feature switches it off) replaces a model allowlist that would rot on contact.
  */
 
 import type {
@@ -46,37 +13,22 @@ import type { ToolDef } from './tools';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
 /**
- * Completion budgets.
- *
- * The trap here, and it cost a debugging session: **thinking tokens count
- * against `max_tokens`**, and they are invisible in `completion_tokens`. The
- * decision itself is about 150 tokens, but Gemini spends 250 to 800 thinking
- * first, varying run to run. Budget for the decision alone and the model runs
- * out of room mid-call, and the API reports it as
- * `MALFORMED_FUNCTION_CALL`, which reads like a schema bug and is not one.
- *
- * 2000 clears the observed thinking ceiling with room to spare.
+ * Thinking tokens count against `max_tokens` but are invisible in `completion_tokens`. Budget too
+ * tight and the model runs out mid-call, reported as `MALFORMED_FUNCTION_CALL` (reads like a schema
+ * bug, isn't one). 2000 clears the observed thinking ceiling with room to spare.
  */
 const CHAT_MAX_TOKENS = 2000;
 const JSON_MAX_TOKENS = 6000;
 
-/**
- * What one complete decision costs: the system prompt, the incident, the
- * pre-gathered evidence, the terminal tool schema and the completion budget.
- * Used only to answer "is there enough left in this window to bother".
- */
-const TYPICAL_CALL_TOKENS = 6_000;   // measured: ~3,600 prompt + the thinking and completion budget
+/** What one full decision call costs, measured; used only to check if the budget can afford another. */
+const TYPICAL_CALL_TOKENS = 6_000;
 
 /** Longest a waiting caller will sit on a spent token window. One window plus slack. */
 const MAX_BUDGET_WAIT_MS = 70_000;
 
 /**
- * SENTRY carries a five-step effort scale; Gemini takes three.
- *
- * `low` is the default for a live console and it is not a cost decision: at
- * medium the model spends longer thinking for a judgment whose evidence has
- * already been gathered, weighed and handed to it, which buys latency the
- * operator feels and little else.
+ * guard[ai]n's five-step effort scale maps to Gemini's three. `low` is the default not for cost but
+ * because the evidence is already gathered and weighed; `medium` just buys latency the operator feels.
  */
 function toReasoningEffort(effort: string): 'low' | 'medium' | 'high' {
   switch (effort) {
@@ -87,26 +39,22 @@ function toReasoningEffort(effort: string): 'low' | 'medium' | 'high' {
 }
 
 /**
- * Chosen against the free tier, by measurement.
- *
- * The free tier meters **requests per day, per model**, and the allowance is not
- * uniform: `gemini-3.6-flash` grants 20 a day, which the console spends in about
- * a minute. Flash-lite is the tier Google actually gives away, and it survived
- * sustained calling where the flagship did not.
- *
- * It is also the better fit on the merits. A dispatch console is a latency
- * surface, the operator is watching the card fill in, and this answers in about
- * 1.6s against 5s for the flagship. The judgment being asked for is a bounded
- * one, since the evidence has already been gathered and weighed before the model
- * sees it, and in testing this model wrote a usable responder instruction and
- * rationale where two faster siblings returned an empty instruction.
+ * Chosen by measurement against the free tier: it meters requests per day per model, and
+ * `gemini-3.6-flash`'s 20/day is spent by the console in about a minute. Flash-lite is the tier
+ * Google actually gives away, survives sustained calling, and answers in ~1.6s versus 5s.
  */
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string | null;
-  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+    /** Opaque passthrough, required on the way back in. See `OpenAiSession.next`. */
+    extra_content?: unknown;
+  }>;
   tool_call_id?: string;
   name?: string;
 }
@@ -119,7 +67,16 @@ interface ChatResponse {
       /** Thought summaries, where the endpoint returns them at all. */
       reasoning?: string | null;
       reasoning_content?: string | null;
-      tool_calls?: Array<{ id: string; type?: string; function?: { name?: string; arguments?: string } }>;
+      tool_calls?: Array<{
+        id: string;
+        type?: string;
+        function?: { name?: string; arguments?: string };
+        /**
+         * Carries `google.thought_signature`. Opaque, and the API rejects the
+         * next turn without it. See the echo in `OpenAiSession.next`.
+         */
+        extra_content?: unknown;
+      }>;
     };
   }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number };
@@ -128,21 +85,12 @@ interface ChatResponse {
 /** Refusals arrive as a finish reason rather than a distinct stop type. */
 const REFUSAL_REASONS = new Set(['content_filter', 'safety', 'prohibited_content', 'blocklist']);
 
-/**
- * What the account has left in the current per-minute window, as reported by
- * the last response. Believing the server beats guessing at a limit that
- * differs per model and per tier.
- */
+/** What the account has left in the current window, as reported by the last response. */
 interface TokenBudget {
   remaining: number;
   /** Wall-clock ms at which the window refills. */
   resetAt: number;
-  /**
-   * Why we stood down, in the operator's words, kept so that every subsequent
-   * refusal repeats the real reason. Without it the first accurate message is
-   * replaced by a generic per-minute one, and a spent *daily* quota ends up
-   * advising the operator to slow the simulation down, which does nothing.
-   */
+  /** Why we stood down, kept so every subsequent refusal repeats the real reason (daily vs per-minute). */
   reason?: string;
 }
 
@@ -155,12 +103,8 @@ export class GeminiRateLimitError extends Error {
 }
 
 /**
- * What a Gemini 429 actually tells you.
- *
- * There are no rate-limit headers on this endpoint, so everything worth knowing
- * is in the error body: which quota was hit, what it is worth, and how long to
- * wait. Per-minute and per-day exhaustion need opposite responses from the
- * operator, so it is worth the parsing.
+ * No rate-limit headers on this endpoint, so a 429's error body is the only source for which
+ * quota was hit and how long to wait. Per-minute and per-day exhaustion need opposite responses.
  */
 interface QuotaFailure {
   perDay: boolean;
@@ -171,7 +115,8 @@ interface QuotaFailure {
 
 function parseQuota(body: string): QuotaFailure {
   const quotaId = /"quotaId"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? '';
-  const limit = /limit:\s*([\d,]+)/.exec(body)?.[1] ?? null;
+  // Must end on a digit: the body reads "limit: 500, model: ...", and a greedy [\d,]+ swallows the comma.
+  const limit = /limit:\s*(\d(?:[\d,]*\d)?)/.exec(body)?.[1] ?? null;
   const retry = /"retryDelay"\s*:\s*"([^"]+)"/.exec(body)?.[1]
     ?? /retry in ([\d.]+)s/i.exec(body)?.[1];
   return {
@@ -182,12 +127,8 @@ function parseQuota(body: string): QuotaFailure {
 }
 
 /**
- * How long to stand down after a daily quota is spent.
- *
- * Google's `retryDelay` on a per-day violation is a per-minute figure and
- * retrying on it just earns another 429. Standing down properly costs nothing,
- * because the Reasoner answers every incident meanwhile, and it stops the
- * console generating a failed request per alarm for the rest of the day.
+ * Google's `retryDelay` on a per-day quota violation is a per-minute figure; retrying on it just
+ * earns another 429. Standing down properly costs nothing, the Reasoner covers every incident meanwhile.
  */
 const DAILY_STAND_DOWN_MS = 15 * 60_000;
 
@@ -289,12 +230,9 @@ export class GeminiProvider implements LlmProvider {
   }
 
   /**
-   * One request, with retries for transient failures and one capability
-   * downgrade if the model rejects reasoning or schema output.
-   *
-   * Rate limits are handled by refusing early rather than by waiting: a
-   * dispatch console that blocks a minute on a token bucket is worse than one
-   * that answers immediately from the local policy and says so.
+   * One request, with retries and one capability downgrade if the model rejects reasoning/schema
+   * output. Rate limits refuse early rather than wait: blocking on a token bucket is worse than
+   * answering immediately from the local policy.
    */
   async post(body: Record<string, unknown>, mode: 'chat' | 'json'): Promise<ChatResponse> {
     const maxCompletion = mode === 'chat' ? CHAT_MAX_TOKENS : JSON_MAX_TOKENS;
@@ -307,10 +245,8 @@ export class GeminiProvider implements LlmProvider {
         reasoning_effort: toReasoningEffort(this.effort),
         ...body,
       };
-      // Live dispatch decisions fail fast, because the queue is waiting and the
-      // Reasoner answers immediately. The reflection pass is human-initiated,
-      // runs behind a spinner and has no equally good substitute, so it is
-      // allowed to wait out the window instead.
+      // Dispatch decisions fail fast (the Reasoner covers them); the human-initiated reflection
+      // pass has no equally good substitute, so it's allowed to wait out the window instead.
       await this.awaitBudget(estimateTokens(payload, maxCompletion), mode === 'json');
 
       let res: Response;
@@ -344,12 +280,11 @@ export class GeminiProvider implements LlmProvider {
 
       const text = await res.text();
 
-      // A 400 naming a feature we opted into is a capability answer, not an
-      // error: switch it off and retry immediately rather than burning the turn.
+      // A 400 naming an opted-in feature is a capability answer: switch it off and retry.
       if (res.status === 400 && this.downgrade(text, mode)) continue;
 
-      // 429 is the documented rate limit; 413 is the same limit reported as an
-      // oversized request when the *requested* budget will not fit the window.
+      // 413 is the same rate limit as 429, reported as an oversized request when the
+      // requested budget won't fit the window.
       if (res.status === 429 || res.status === 413) {
         const quota = parseQuota(text);
         const wait = quota.perDay
@@ -383,15 +318,14 @@ export class GeminiProvider implements LlmProvider {
   }
 
   /**
-   * Refuse, or wait, when the account demonstrably cannot afford the call.
-   * `mayWait` callers block until the window refills; everyone else throws so
-   * the caller can degrade immediately.
+   * Refuse or wait when the account can't afford the call. `mayWait` callers block until the
+   * window refills; everyone else throws so the caller can degrade immediately.
    */
   private async awaitBudget(estimate: number, mayWait: boolean): Promise<void> {
     const b = this.budget;
-    if (!b) return;                                   // nothing observed yet
+    if (!b) return;
     const remainingMs = b.resetAt - Date.now();
-    if (remainingMs <= 0) { this.budget = null; return; }   // window refilled
+    if (remainingMs <= 0) { this.budget = null; return; }
     if (estimate <= b.remaining) return;
 
     if (mayWait && remainingMs <= MAX_BUDGET_WAIT_MS) {
@@ -454,8 +388,9 @@ class OpenAiSession implements LlmSession {
         input: parseArgs(c.function!.arguments),
       }));
 
-    // Echo the assistant turn back stripped to the fields the API accepts:
-    // reasoning is returned but not accepted on the way back in.
+    // Echo the assistant turn stripped to accepted fields (reasoning isn't accepted back in),
+    // except `extra_content`: it carries `google.thought_signature`, and Gemini 400s the next
+    // turn without it. Opaque, so passed through verbatim rather than parsed.
     this.messages.push({
       role: 'assistant',
       content: msg.content ?? '',
@@ -465,6 +400,7 @@ class OpenAiSession implements LlmSession {
               id: c.id,
               type: 'function' as const,
               function: { name: c.function?.name ?? '', arguments: c.function?.arguments ?? '{}' },
+              ...(c.extra_content === undefined ? {} : { extra_content: c.extra_content }),
             })),
           }
         : {}),
@@ -495,13 +431,7 @@ class OpenAiSession implements LlmSession {
   }
 }
 
-/**
- * Pull the human-readable line out of the error envelope.
- *
- * Gemini sometimes wraps it in a JSON array, so `{error:{...}}` and
- * `[{error:{...}}]` both have to unwrap or a rate limit reaches the operator as
- * a wall of raw JSON.
- */
+/** Gemini sometimes wraps the error in a JSON array, so both `{error:{...}}` and `[{error:{...}}]` unwrap. */
 function errorMessage(body: string): string {
   try {
     const parsed: unknown = JSON.parse(body);

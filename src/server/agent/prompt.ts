@@ -1,11 +1,10 @@
 /**
  * Prompt construction, split by volatility.
  *
- * `buildSystemPrompt` must be byte-identical across every incident in a run,
- * it is the cached prefix. Anything that changes per incident (the event, the
- * clock, recent activity) belongs in `buildIncidentPrompt`, which sits after
- * the cache breakpoint. Never interpolate a timestamp or an incident id into
- * the system prompt; that silently destroys the cache for the whole session.
+ * `buildSystemPrompt` must be byte-identical across every incident in a run
+ * (the cached prefix); anything per-incident belongs in `buildIncidentPrompt`,
+ * after the cache breakpoint. Never interpolate a timestamp or incident id
+ * into the system prompt, that silently destroys the cache for the session.
  */
 
 import type { Guard, Robot, SecurityEvent, Zone } from '../../shared/types';
@@ -49,7 +48,7 @@ export function buildSystemPrompt(world: WorldState): string {
   const guards = world.guards.map(guardLine).join('\n');
   const robots = world.robots.map((r) => robotLine(r, world)).join('\n');
 
-  return `You are SENTRY, the dispatch agent for Calvis physical-security operations. You triage one alarm
+  return `You are GUARDIAN, the dispatch agent for Calvis physical-security operations. You triage one alarm
 at a time and issue the order a senior dispatcher would issue: who goes, how fast, and why.
 
 You are accountable to an ops manager on shift. They will read your rationale and they will remember

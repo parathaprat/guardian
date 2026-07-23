@@ -6,13 +6,20 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import type { AgentActionKind, EventType, OperatorFeedback, Priority, RuleStatus } from '../../shared/types';
+import type {
+  AgentActionKind, EventType, OperatorFeedback, Priority, RuleStatus, SourceKind,
+} from '../../shared/types';
 import { ALL_EVENT_TYPES } from '../../shared/types';
-import type { OpsEngine } from '../engine';
+import type { EngineGateway } from './gateway';
+import { MAX_TRANSCRIPT } from '../agent/intake';
+import { MAX_QUESTION } from '../agent/ask';
 
 const ACTIONS: AgentActionKind[] = ['dispatch', 'escalate', 'monitor', 'suppress'];
 const PRIORITIES: Priority[] = ['P0', 'P1', 'P2', 'P3'];
 const RULE_STATUSES: RuleStatus[] = ['proposed', 'active', 'rejected', 'retired'];
+const SOURCE_KINDS: SourceKind[] = [
+  'robot', 'fixed_sensor', 'guard_report', 'access_control', 'tenant_call',
+];
 
 function bad(res: Response, message: string): void {
   res.status(400).json({ error: message });
@@ -30,11 +37,11 @@ function guard(fn: (req: Request, res: Response) => Promise<void> | void) {
   };
 }
 
-export function createRouter(engine: OpsEngine): Router {
+export function createRouter(engine: EngineGateway): Router {
   const router = Router();
 
-  router.get('/snapshot', guard((_req, res) => {
-    res.json(engine.snapshot());
+  router.get('/snapshot', guard(async (_req, res) => {
+    res.json(await engine.snapshot());
   }));
 
   // ── SSE ────────────────────────────────────────────────────────────────
@@ -52,8 +59,30 @@ export function createRouter(engine: OpsEngine): Router {
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
 
-    send({ type: 'snapshot', data: engine.snapshot() });
-    const unsubscribe = engine.subscribe(send);
+    // Subscribe before fetching the snapshot (now async, may hit Postgres):
+    // otherwise events published during that await would be lost. Buffer
+    // until the snapshot is sent to preserve full-state-then-deltas ordering.
+    const backlog: unknown[] = [];
+    let opened = false;
+    const unsubscribe = engine.subscribe((e) => {
+      if (opened) send(e);
+      else backlog.push(e);
+    });
+
+    void engine.snapshot()
+      .then((snapshot) => {
+        send({ type: 'snapshot', data: snapshot });
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        send({ type: 'toast', data: { level: 'error', message: `Snapshot unavailable: ${message}` } });
+      })
+      .finally(() => {
+        opened = true;
+        for (const e of backlog) send(e);
+        backlog.length = 0;
+      });
+
     const heartbeat = setInterval(() => res.write(': ping\n\n'), 15_000);
 
     req.on('close', () => {
@@ -64,33 +93,33 @@ export function createRouter(engine: OpsEngine): Router {
   });
 
   // ── simulation transport ───────────────────────────────────────────────
-  router.post('/sim/start', guard((_req, res) => { engine.start(); res.json({ ok: true }); }));
-  router.post('/sim/pause', guard((_req, res) => { engine.pause(); res.json({ ok: true }); }));
+  router.post('/sim/start', guard(async (_req, res) => { await engine.start(); res.json({ ok: true }); }));
+  router.post('/sim/pause', guard(async (_req, res) => { await engine.pause(); res.json({ ok: true }); }));
 
-  router.post('/sim/speed', guard((req, res) => {
+  router.post('/sim/speed', guard(async (req, res) => {
     const speed = Number((req.body ?? {}).speed);
     if (!Number.isFinite(speed) || speed <= 0) return bad(res, 'speed must be a positive number');
-    engine.setSpeed(speed);
+    await engine.setSpeed(speed);
     res.json({ ok: true, speed });
   }));
 
-  router.post('/sim/seed', guard((req, res) => {
+  router.post('/sim/seed', guard(async (req, res) => {
     const seed = Number((req.body ?? {}).seed);
     if (!Number.isInteger(seed)) return bad(res, 'seed must be an integer');
-    engine.reseed(seed);
+    await engine.reseed(seed);
     res.json({ ok: true, seed });
   }));
 
-  router.post('/sim/inject', guard((req, res) => {
+  router.post('/sim/inject', guard(async (req, res) => {
     const { type, zoneId } = (req.body ?? {}) as { type?: string; zoneId?: string };
     if (!type || !ALL_EVENT_TYPES.includes(type as EventType)) return bad(res, 'unknown event type');
     if (typeof zoneId !== 'string' || zoneId.length === 0) return bad(res, 'zoneId is required');
-    engine.injectEvent(type as EventType, zoneId);
+    await engine.injectEvent(type as EventType, zoneId);
     res.json({ ok: true });
   }));
 
   // ── operator feedback ──────────────────────────────────────────────────
-  router.post('/incidents/:id/feedback', guard((req, res) => {
+  router.post('/incidents/:id/feedback', guard(async (req, res) => {
     const body = (req.body ?? {}) as Partial<OperatorFeedback> & { operator?: string };
     if (body.verdict !== 'confirm' && body.verdict !== 'override') {
       return bad(res, "verdict must be 'confirm' or 'override'");
@@ -102,7 +131,7 @@ export function createRouter(engine: OpsEngine): Router {
       return bad(res, 'unknown correctedPriority');
     }
     try {
-      engine.feedback(String(req.params.id), {
+      await engine.feedback(String(req.params.id), {
         ts: 0,
         operator: body.operator ?? 'operator',
         verdict: body.verdict,
@@ -123,23 +152,23 @@ export function createRouter(engine: OpsEngine): Router {
     res.json(proposal);
   }));
 
-  router.post('/playbook/proposals/:id/apply', guard((req, res) => {
+  router.post('/playbook/proposals/:id/apply', guard(async (req, res) => {
     const { accept, reject } = (req.body ?? {}) as { accept?: unknown; reject?: unknown };
     const a = Array.isArray(accept) ? accept.filter((x): x is string => typeof x === 'string') : [];
     const r = Array.isArray(reject) ? reject.filter((x): x is string => typeof x === 'string') : [];
-    engine.applyProposal(String(req.params.id), a, r);
+    await engine.applyProposal(String(req.params.id), a, r);
     res.json({ ok: true, accepted: a.length, rejected: r.length });
   }));
 
-  router.post('/playbook/proposals/:id/dismiss', guard((req, res) => {
-    engine.dismissProposal(String(req.params.id));
+  router.post('/playbook/proposals/:id/dismiss', guard(async (req, res) => {
+    await engine.dismissProposal(String(req.params.id));
     res.json({ ok: true });
   }));
 
-  router.post('/playbook/rules/:id/status', guard((req, res) => {
+  router.post('/playbook/rules/:id/status', guard(async (req, res) => {
     const status = (req.body ?? {}).status as RuleStatus;
     if (!RULE_STATUSES.includes(status)) return bad(res, 'unknown rule status');
-    engine.setRuleStatus(String(req.params.id), status);
+    await engine.setRuleStatus(String(req.params.id), status);
     res.json({ ok: true });
   }));
 
@@ -155,11 +184,7 @@ export function createRouter(engine: OpsEngine): Router {
     res.json(run);
   }));
 
-  /**
-   * The multi-world experiment. Separate from /evals/run because it answers a
-   * different question: not "did learning win here" but "does it win in
-   * general, and how sure are we".
-   */
+  /** Separate from /evals/run: not "did learning win here" but "does it win in general". */
   router.post('/evals/experiment', guard(async (req, res) => {
     const body = (req.body ?? {}) as {
       eventCount?: unknown; seedCount?: unknown; useLlm?: unknown;
@@ -176,9 +201,46 @@ export function createRouter(engine: OpsEngine): Router {
     res.json(exp);
   }));
 
-  router.post('/memory/reset', guard((_req, res) => {
-    engine.resetMemory();
+  router.post('/memory/reset', guard(async (_req, res) => {
+    await engine.resetMemory();
     res.json({ ok: true });
+  }));
+
+  // ── language surfaces ──────────────────────────────────────────────────
+  router.post('/intake/parse', guard(async (req, res) => {
+    const transcript = String((req.body ?? {}).transcript ?? '').trim();
+    if (transcript.length === 0) return bad(res, 'transcript is required');
+    if (transcript.length > MAX_TRANSCRIPT) return bad(res, `transcript must be under ${MAX_TRANSCRIPT} characters`);
+    res.json(await engine.parseIntake(transcript));
+  }));
+
+  /** The commit after /parse; takes confirmed fields, not a parse id, so an edited parse dispatches what's on screen. */
+  router.post('/intake/dispatch', guard(async (req, res) => {
+    const body = (req.body ?? {}) as {
+      type?: string; zoneId?: string; description?: string; sourceKind?: string;
+    };
+    if (!body.type || !ALL_EVENT_TYPES.includes(body.type as EventType)) return bad(res, 'unknown event type');
+    if (typeof body.zoneId !== 'string' || body.zoneId.length === 0) return bad(res, 'zoneId is required');
+    const description = String(body.description ?? '').trim().slice(0, 240);
+    if (description.length === 0) return bad(res, 'description is required');
+    const sourceKind = SOURCE_KINDS.includes(body.sourceKind as SourceKind)
+      ? (body.sourceKind as SourceKind)
+      : 'guard_report';
+    const { incidentId } = await engine.intakeDispatch({
+      type: body.type as EventType, zoneId: body.zoneId, description, sourceKind,
+    });
+    res.json({ ok: true, incidentId });
+  }));
+
+  router.post('/handover/brief', guard(async (_req, res) => {
+    res.json(await engine.briefNow());
+  }));
+
+  router.post('/ask', guard(async (req, res) => {
+    const question = String((req.body ?? {}).question ?? '').trim();
+    if (question.length === 0) return bad(res, 'question is required');
+    if (question.length > MAX_QUESTION) return bad(res, `question must be under ${MAX_QUESTION} characters`);
+    res.json(await engine.ask(question));
   }));
 
   return router;

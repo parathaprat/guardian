@@ -1,13 +1,7 @@
 /**
- * SENTRY, the world simulator.
- *
- * Owns the only copy of ground truth in the system. Events leave here with the
- * truth attached in `SeededEvent.truth`; the dispatch pipeline is handed
- * `SeededEvent.event` and nothing else. `resolve()` is the single function that
- * consults truth for scoring, and it is called only after a decision is locked.
- *
- * Everything is driven by a seeded PRNG so the same seed produces a byte-identical
- * stream. That is the precondition for the A/B replay harness meaning anything.
+ * guard[ai]n, the world simulator: owns the only copy of ground truth.
+ * `resolve()` is the sole reader of it, called only after a decision locks.
+ * Seeded PRNG throughout, so a seed reproduces a byte-identical stream (required for the A/B harness).
  */
 
 import type {
@@ -21,11 +15,8 @@ import { makeIdFactory } from '../util/ids';
 import { buildWorld, matchRegularity, REGULARITY_WEIGHTS, REGULARITIES } from './site';
 
 /**
- * Sim time starts at a fixed instant so runs are comparable across machines.
- *
- * 01:30 is chosen deliberately: at the default 64× a reviewer is inside the
- * 02:00–04:30 Dock D-3 nuisance window within a real minute, which is the
- * clearest demonstration of the calibration channel earning its keep.
+ * Fixed start instant for cross-machine comparability. 01:30 is chosen so a
+ * reviewer at the default 64x speed sees the Dock D-3 nuisance window within a real minute.
  */
 const EPOCH = Date.UTC(2026, 6, 21, 1, 30, 0);
 
@@ -34,10 +25,9 @@ const HOP_MS = 55_000;
 const CROSS_SITE_MS = 9 * 60_000;
 
 /**
- * How the world actually behaves, per event type, absent a matching regularity.
- * Deliberately NOT the same table the agent reasons from (`TYPE_PROFILE` in
- * agent/tools.ts), if the agent's prior were the generator's truth, the
- * calibration channel would have nothing left to learn.
+ * How the world actually behaves per event type, absent a matching regularity.
+ * Deliberately not the table the agent reasons from (`TYPE_PROFILE` in
+ * agent/tools.ts), the calibration channel needs a gap to learn.
  */
 interface TruthProfile {
   pReal: number;
@@ -82,12 +72,6 @@ const TENANT_TYPES: EventType[] = ['noise_complaint', 'package_theft', 'person_d
  * Arrivals per sim-hour, by hour of day. Daytime is busier in raw volume; the
  * overnight window is quieter but a far higher share of what it produces is real.
  */
-/**
- * Alarms per sim-hour across the whole 3-site portfolio. A real portfolio of this
- * size runs busier than intuition suggests, the overwhelming majority of that
- * traffic is nuisance, which is precisely the problem the agent exists to solve.
- * At the default 64× this lands around one event every two seconds.
- */
 function arrivalRate(hour: number): number {
   if (hour >= 7 && hour < 19) return 34;
   if (hour >= 19 && hour < 23) return 26;
@@ -125,6 +109,15 @@ export class WorldSimulator implements Simulator {
   }
 
   now(): SimTime { return this.clock; }
+
+  /**
+   * Resumes the clock at a persisted time; only ever moves forward, so a
+   * restart continues the prior timeline rather than snapping back to the
+   * epoch. The rng stream is untouched, so generation stays deterministic for the seed.
+   */
+  seekTo(time: SimTime): void {
+    if (Number.isFinite(time) && time > this.clock) this.clock = time;
+  }
 
   reseed(seed: number): void {
     this.seed = seed;
@@ -246,12 +239,28 @@ export class WorldSimulator implements Simulator {
     return { kind: 'fixed_sensor', id: `sen-${zone.code.toLowerCase()}`, name: `Sensor ${zone.code}` };
   }
 
-  private buildEvent(ts: SimTime, forced?: { zone: Zone; type: EventType }): SeededEvent {
+  private buildEvent(
+    ts: SimTime,
+    forced?: {
+      zone: Zone;
+      type: EventType;
+      reported?: { description: string; sourceKind: SourceKind; sourceName: string };
+    },
+  ): SeededEvent {
     const zone = forced?.zone ?? this.pickZone();
     const site = this.world.siteById.get(zone.siteId)!;
     const hour = new Date(ts).getUTCHours() + new Date(ts).getUTCMinutes() / 60;
     const type = forced?.type ?? this.pickType(zone, hour);
-    const src = this.pickSource(zone, type);
+    // Drawn unconditionally, even when a reported source overrides it, so that
+    // the rng stream advances the same way either way.
+    const picked = this.pickSource(zone, type);
+    const src = forced?.reported
+      ? {
+        kind: forced.reported.sourceKind,
+        id: `intake-${zone.code.toLowerCase()}`,
+        name: forced.reported.sourceName,
+      }
+      : picked;
 
     const base = TRUTH[type];
     const reg = matchRegularity({ siteId: site.id, zoneId: zone.id, type, hour, sourceId: src.id });
@@ -288,7 +297,7 @@ export class WorldSimulator implements Simulator {
       type,
       sourceKind: src.kind,
       sourceId: src.id,
-      description: this.describe(type, zone, src.name, src.kind),
+      description: forced?.reported?.description ?? this.describe(type, zone, src.name, src.kind),
       sensorConfidence: Math.round(conf * 100) / 100,
       metadata: {
         site: site.code,
@@ -376,10 +385,19 @@ export class WorldSimulator implements Simulator {
     }
   }
 
-  /** Force a specific scenario, used by the console's INJECT affordance. */
-  injectAt(type: EventType, zoneId: string, ts: SimTime = this.clock): SeededEvent {
+  /**
+   * Forces a specific scenario (console INJECT, radio intake). `reported`
+   * supplies a human's own words as the description, but ground truth is still
+   * synthesised from the same regularities, so the agent is equally fallible on a radio call.
+   */
+  injectAt(
+    type: EventType,
+    zoneId: string,
+    ts: SimTime = this.clock,
+    reported?: { description: string; sourceKind: SourceKind; sourceName: string },
+  ): SeededEvent {
     const zone = this.world.zoneById.get(zoneId) ?? this.world.zones[0]!;
-    const seeded = this.buildEvent(ts, { zone, type });
+    const seeded = this.buildEvent(ts, { zone, type, reported });
     this.remember(seeded.event);
     return seeded;
   }

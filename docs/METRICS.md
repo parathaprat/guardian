@@ -108,7 +108,7 @@ headline delta.
 
 Stated plainly, because a number is only worth trusting if its caveats are.
 
-1. **The simulator is the world.** Every figure is a claim about SENTRY's
+1. **The simulator is the world.** Every figure is a claim about guard[ai]n's
    behaviour inside a model whose regularities I authored and the agent was built
    to find. It is evidence that the learning loop closes, not a field trial.
 2. **The arms are not paired.** `resolve()` and `offerDispatch()` draw from each

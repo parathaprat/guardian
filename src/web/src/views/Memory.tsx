@@ -1,24 +1,22 @@
 /**
- * MEMORY, what the agent has learned, and the human gate on the playbook.
- *
- * The learned channels that have a home of their own, all inspectable and all
- * editable by the operator. Responder models live on Roster and precedent
- * surfaces per-decision on Dispatch; this page owns calibration and the
- * playbook, which are the two an ops manager actually reasons about. The proposal
- * diff is the most important thing on this screen: the agent drafts policy, a
- * human approves it.
+ * MEMORY: what the agent has learned, and the human gate on the playbook.
+ * Responder models live on Roster and precedent surfaces per-decision on
+ * Dispatch; this page owns calibration and the playbook the agent drafts and a human approves.
  */
 
 import { useMemo, useState } from 'react';
-import type { CalibrationCell, EventType, PlaybookProposal, PlaybookRule } from '../../../shared/types';
+import type {
+  AskAnswer, CalibrationCell, EventType, PlaybookProposal, PlaybookRule,
+} from '../../../shared/types';
 import { ACTION_LABELS, ALL_EVENT_TYPES, ENGINE_LABELS, EVENT_LABELS } from '../../../shared/types';
 import { Heatmap, type HeatCell } from '../components/charts';
 import { KnowledgeGraph } from '../components/KnowledgeGraph';
+import { TraceInspector } from '../components/Trace';
 import {
   ConfidenceBar, ConfirmButton, EmptyState, Label, Panel, Pill, Spinner, StatusDot,
 } from '../components/ui';
 import { api } from '../lib/api';
-import { fmtHourBucket, fmtPct } from '../lib/format';
+import { fmtDuration, fmtHourBucket, fmtPct } from '../lib/format';
 import {
   pushToast, useCalibration, usePlaybook, useProposals, useResponderModels, useWorld,
 } from '../lib/store';
@@ -53,7 +51,7 @@ export default function Memory() {
           <Label>Memory</Label>
           <h1 className="display display--l">Nothing here<br />was configured<span className="dot-accent" /></h1>
           <p className="view-lede">
-            Every number on this page was learned from an outcome Sentry watched resolve.
+            Every number on this page was learned from an outcome Guardian watched resolve.
             Calibration and the playbook live here; the responder models are on Roster, and
             precedent shows up as evidence on each call. The playbook still needs a human to
             sign it off.
@@ -67,6 +65,8 @@ export default function Memory() {
         </div>
       </header>
 
+      <AskPanel />
+
       <section className="view-section" data-tour="graph">
         <div className="view-section-head">
           <div>
@@ -79,7 +79,7 @@ export default function Memory() {
           <KnowledgeGraph cells={calibration} world={world} />
         </Panel>
         <p className="view-caption">
-          Sites and zones are the world Sentry was handed. Every connection between a place and
+          Sites and zones are the world Guardian was handed. Every connection between a place and
           an alarm type was earned from an outcome it watched resolve, so an empty graph is an
           honest one. Reset the memory and watch it rebuild itself.
         </p>
@@ -127,6 +127,130 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
   );
 }
 
+// ── Ask ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Lets an ops manager ask instead of decoding a chart. The trace here isn't a
+ * debug affordance, it's the answer's evidence: every lookup the model made
+ * through its read-only tools is shown, so the answer can be checked.
+ */
+const SUGGESTIONS = [
+  'Which zone gives us the most false alarms, and at what hour?',
+  'Who should I send to a medical call right now, and why them?',
+  'Why does it keep suppressing motion alerts?',
+  'What is the agent still unsure about?',
+];
+
+function AskPanel() {
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState<AskAnswer | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [showTrace, setShowTrace] = useState(false);
+
+  const run = async (q: string) => {
+    const trimmed = q.trim();
+    if (!trimmed || busy) return;
+    setBusy(true);
+    setAnswer(null);
+    try {
+      const res = await api.ask(trimmed);
+      setAnswer(res);
+      setShowTrace(res.degraded);
+    } catch (e) {
+      pushToast(e instanceof Error ? e.message : 'Ask failed', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="view-section">
+      <div className="view-section-head">
+        <div>
+          <Label>Ask</Label>
+          <h2 className="view-h2">Question the memory directly</h2>
+        </div>
+        <Pill>reads the stores, cites what it read</Pill>
+      </div>
+
+      <Panel bodyClassName="ask-body">
+        <form
+          className="ask-form"
+          onSubmit={(e) => { e.preventDefault(); void run(question); }}
+        >
+          <input
+            className="ask-input"
+            type="text"
+            value={question}
+            maxLength={400}
+            placeholder="Which zone gives us the most false alarms?"
+            aria-label="Ask a question about what the agent has learned"
+            onChange={(e) => setQuestion(e.target.value)}
+            disabled={busy}
+          />
+          <button type="submit" className="btn btn--primary" disabled={busy || question.trim().length === 0}>
+            {busy ? 'Looking…' : 'Ask'}
+          </button>
+        </form>
+
+        <div className="ask-suggest">
+          {SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className="ask-chip"
+              disabled={busy}
+              onClick={() => { setQuestion(s); void run(s); }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        {busy && <div className="ask-wait"><Spinner label="Reading the stores" /></div>}
+
+        {answer && !busy && (
+          <div className="ask-answer">
+            <p className="ask-question mono">{answer.question}</p>
+            <p className="ask-text">{answer.answer}</p>
+
+            {answer.citations.length > 0 && (
+              <div className="ask-cites">
+                <span className="label">Read</span>
+                {answer.citations.map((c) => (
+                  <span key={`${c.kind}-${c.refId}`} className="ask-cite" title={`${c.kind}: ${c.refId}`}>
+                    <span className="mono ask-cite-id">{c.refId}</span>
+                    <span className="ask-cite-label">{c.label}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="ask-foot">
+              <span className="mono muted">
+                {answer.degraded ? 'keyword routing, no hosted model' : `${ENGINE_LABELS[answer.engine]} · ${answer.trace.length} steps`}
+                {' · '}{fmtDuration(answer.latencyMs)}
+              </span>
+              {answer.trace.length > 0 && (
+                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setShowTrace((v) => !v)}>
+                  {showTrace ? 'Hide the lookups' : 'Show the lookups'}
+                </button>
+              )}
+            </div>
+
+            {showTrace && answer.trace.length > 0 && <TraceInspector steps={answer.trace} />}
+          </div>
+        )}
+      </Panel>
+      <p className="view-caption">
+        The model has no knowledge of this portfolio beyond five read-only tools over the same
+        stores this page renders. It cannot reach ground truth, because the stores do not hold any,
+        and a citation that does not resolve to a real id is dropped before the answer is shown.
+      </p>
+    </section>
+  );
+}
+
 // ── Channel A ───────────────────────────────────────────────────────────────
 
 function CalibrationSection({ cells }: { cells: readonly CalibrationCell[] }) {
@@ -159,8 +283,7 @@ function CalibrationSection({ cells }: { cells: readonly CalibrationCell[] }) {
       observations: c.observations,
     })), [cells, effective]);
 
-  // The cells that have moved furthest from an uninformative prior are the ones
-  // worth showing an operator.
+  // Cells furthest from an uninformative prior are the ones worth surfacing.
   const movers = useMemo(() => [...cells]
     .filter((c) => c.observations >= 3 && c.zoneId !== null)
     .sort((a, b) => Math.abs(b.pReal - 0.5) * Math.log1p(b.observations)
@@ -204,6 +327,7 @@ function CalibrationSection({ cells }: { cells: readonly CalibrationCell[] }) {
           {movers.length === 0
             ? <EmptyState title="Nothing learned yet">Cells appear once incidents start resolving.</EmptyState>
             : (
+              <div className="tbl-wrap">
               <table className="tbl">
                 <thead>
                   <tr><th>Zone</th><th>Type</th><th>Hours</th><th className="r">P(real)</th><th className="r">n</th></tr>
@@ -225,6 +349,7 @@ function CalibrationSection({ cells }: { cells: readonly CalibrationCell[] }) {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
         </Panel>
       </div>
@@ -249,7 +374,9 @@ function RuleGroups({ rules }: { rules: readonly PlaybookRule[] }) {
               <Label tone="ink">{label}</Label>
               <span className="muted mono">{set.length}</span>
             </div>
-            {set.map((r) => <RuleCard key={r.id} rule={r} />)}
+            <div className="rule-list">
+              {set.map((r) => <RuleCard key={r.id} rule={r} />)}
+            </div>
           </div>
         );
       })}
@@ -349,6 +476,30 @@ function ProposalDiff({ proposal, rules }: { proposal: PlaybookProposal; rules: 
   };
 
   const changeCount = accepted.size + proposal.retire.length;
+
+  /**
+   * A reflection pass that proposed nothing is still worth recording, but not
+   * as a full approval card with a dead "Apply 0" button, that's exactly the
+   * needs-you noise this product exists to remove. One line instead.
+   */
+  if (proposal.rules.length === 0 && proposal.retire.length === 0) {
+    return (
+      <article className="diff is-empty">
+        <div className="diff-quiet">
+          <Label tone="accent">{proposal.id}</Label>
+          <span className="diff-quiet-body" title={proposal.summary}>{proposal.summary}</span>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm diff-quiet-x"
+            disabled={busy}
+            onClick={() => { void api.dismissProposal(proposal.id); }}
+          >
+            Dismiss
+          </button>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className="diff">

@@ -5,14 +5,16 @@ import './Header.css';
 
 // ─── Routing vocabulary. The header renders the tab bar, so it owns the table. ──
 
-export type ViewId = 'dispatch' | 'memory' | 'evals' | 'roster';
+export type ViewId = 'dispatch' | 'briefing' | 'memory' | 'evals' | 'roster';
 export type ConnectionState = 'connecting' | 'live' | 'lost';
 export type ThemeName = 'light' | 'dark';
 
-export const VIEWS: ViewId[] = ['dispatch', 'memory', 'evals', 'roster'];
+/** Nav order follows the shift, not the alphabet: work the queue, then hand over. */
+export const VIEWS: ViewId[] = ['dispatch', 'briefing', 'memory', 'evals', 'roster'];
 
 const TAB_LABEL: Record<ViewId, string> = {
   dispatch: 'Dispatch',
+  briefing: 'Briefing',
   memory: 'Memory',
   evals: 'Evals',
   roster: 'Roster',
@@ -62,14 +64,10 @@ export default function Header({
   return (
     <header className="hdr">
       <div className="hdr-left">
-        <a className="hdr-word" href="#dispatch" aria-label="Calvis. Sentry home">
-          Calvis<span className="dot-accent" />
+        <a className="hdr-word" href="#dispatch" aria-label="guard[ai]n, AI dispatch. Home">
+          guard<span className="hdr-word-ai" aria-hidden="true">[ai]</span>
+          <span className="sr-only">[ai]</span>n
         </a>
-        <span className="hdr-rule" aria-hidden="true" />
-        <span className="hdr-product">
-          <span className="label hdr-name">Sentry</span>
-          <span className="label hdr-desc">AI Dispatch</span>
-        </span>
       </div>
 
       <nav className="hdr-tabs" aria-label="Views" data-tour="nav">
@@ -173,10 +171,8 @@ export default function Header({
 // ─── Sim clock ────────────────────────────────────────────────────────────────
 
 /**
- * The server only emits `controls` on state changes, so the displayed clock is
- * interpolated between them: sim ms advance at `speed` × real ms while running.
- * Date.now() here is real wall-clock for UI smoothing only, it never touches
- * simulation or memory logic.
+ * Server only emits `controls` on state changes, so the clock is interpolated
+ * between them: sim ms advance at `speed` × real ms while running.
  */
 function useSimClock(controls: SimControls | null): { date: string; time: string } | null {
   const [, setTick] = useState(0);
@@ -250,9 +246,7 @@ function SeedField({ seed, onCommit }: { seed: number | null; onCommit: (seed: n
 function EnginePill({ engine }: { engine: EngineStatus | null }) {
   const kind = engine?.engine ?? 'reasoner';
   const hosted = engine !== null && kind !== 'reasoner';
-  // Vendor and model are separate spans so a narrow header can drop the model
-  // without losing which engine is answering. The full string stays in the
-  // accessible name and in the popover below either way.
+  // Separate spans so a narrow header can drop the model without losing which engine is answering.
   const vendor = engine === null ? 'Engine' : hosted ? ENGINE_LABELS[kind] : 'Reasoner';
   const detail = engine === null ? '' : hosted ? prettyModel(engine.model) : 'Local';
 

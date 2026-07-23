@@ -1,22 +1,11 @@
 /**
  * The agentic loop, written once for every hosted provider.
  *
- * A manual loop rather than an SDK tool runner, because the whole point of the
- * dispatch screen is inspectability: every reasoning block and every tool
- * round-trip is captured as a `TraceStep` and streamed to the console *as it
- * happens*, not after the turn resolves.
- *
- * Three invariants this file is responsible for, whichever vendor is behind it:
- *
- *   - **The loop always terminates with a decision.** Turn budget exhausted, a
- *     refusal, a 500, an expired key: all of them fall through to the local
- *     Reasoner with the partial trace preserved, so the operator sees what was
- *     attempted rather than an empty card.
- *   - **Evidence is accumulated from the tools, not from the model.** The
- *     citations under a decision are produced by `runTool`, so a model cannot
- *     invent a source it did not actually consult.
- *   - **The trace format is identical across engines.** Same step kinds, same
- *     ordering, same labels.
+ * A manual loop, not an SDK tool runner, so every reasoning block and tool
+ * round-trip streams to the console live as a `TraceStep`. Invariants: the
+ * loop always falls through to the local Reasoner rather than returning
+ * nothing; evidence comes only from tool results, never invented by the
+ * model; trace format is identical across engines.
  */
 
 import type { EvidenceRef, TraceStep } from '../../shared/types';
@@ -32,41 +21,21 @@ import { ReasonerAgent } from './reasoner';
 const MAX_TURNS = 6;
 
 /**
- * Is this alarm worth a scarce model call?
- *
- * Only consulted when the provider says its rate-limit window is nearly spent.
- * The rule is the same one a shift supervisor uses when short-handed: spend
- * judgment where being wrong is expensive, and let standing policy handle the
- * rest. A robot-obstruction alert at 3am does not need a large language model;
- * a person-down does.
- *
- * Note what this is *not*: it is not a confidence threshold on the model's own
- * output, which would be circular. It keys off the prior cost of being wrong,
- * which is known before any call is made.
+ * Whether this alarm is worth a scarce hosted-model call. Gates proactively,
+ * not just once the rate-limit window is tight, since severity 1-3 already
+ * covers most alarm volume and the Reasoner handles it well on its own. Keys
+ * off the prior cost of being wrong, not the model's own confidence (that
+ * would be circular).
  */
 function worthTheBudget(type: Parameters<typeof isLifeSafety>[0]): boolean {
   return isLifeSafety(type) || TYPE_PROFILE[type].severity >= 4;
 }
 
 /**
- * One-shot mode: run the evidence tools here, ask the model once.
- *
- * The agentic loop is the better design when tokens are cheap: letting the agent
- * choose what to check is real behaviour, and the trace of it is worth watching.
- * It is the wrong design against a metered free tier, because the fixed prompt is
- * re-sent on every turn. Measured against one, a two-turn decision cost more than
- * an entire minute's allowance, so it could never complete, and the tokens were
- * spent anyway on a call that ended in a fallback.
- *
- * So by default the loop inverts: all six evidence tools run locally
- * (they are deterministic and free), their results go into the prompt, the six
- * tool schemas come *out* of the request, and the model is asked for the one
- * thing only it can give, which is the judgment. That is a single call at around
- * 60% of the tokens, and it fits inside one window.
- *
- * What is lost is real and worth naming: the agent no longer chooses its own
- * evidence. What is kept is everything the operator sees, since the trace still
- * shows every tool call, every result, the model's reasoning and its decision.
+ * One-shot mode: run the evidence tools locally and for free, then one model
+ * call for the judgment, instead of the agentic loop. Needed because on the
+ * free tier the fixed prompt resends every turn, so a two-turn decision can
+ * cost more than an entire minute's allowance and never complete.
  */
 const PREFETCH_ORDER = [
   TOOL_NAMES.zoneHistory,
@@ -78,14 +47,10 @@ const PREFETCH_ORDER = [
 ] as const;
 
 /**
- * Trim the long tails out of a tool result before it goes into the prompt.
- *
- * The evidence block was 41% of every request, and most of that was list tails
- * nobody reads: ten ranked responders where the model picks from the top few,
- * every adjacent zone, every past match. Ranked lists are ranked for a reason,
- * so the tail is the cheapest thing in the request to give up. Nothing is
- * summarised or reworded, it is truncated, the count of what was dropped stays
- * in the prompt, and the trace inspector still shows the untruncated result.
+ * Trim ranked-list tails out of a tool result before it goes into the prompt:
+ * the evidence block was ~41% of every request, mostly list tails the model
+ * never picks from. Truncates only (keeps a dropped-count note); the trace
+ * inspector still shows the untruncated result.
  */
 const LIST_CAPS: Record<string, number> = {
   options: 5,        // ranked responders
@@ -171,15 +136,19 @@ export class LlmAgent implements DispatchAgent {
       ctx.onTraceStep?.(s);
     };
 
-    // Rate-limit triage. Failing the call and then falling back wastes both the
-    // tokens and the wall-clock; deciding not to spend them is strictly better.
+    // Cost triage: routine alarms never reach the hosted model, tight rate-limit
+    // window or not. Reserving it for life-safety/high-severity alarms is what
+    // makes the free-tier daily allowance last a full demo session.
     const provider = this.opts.provider;
-    if (provider.underPressure?.() && !worthTheBudget(ctx.event.type)) {
-      emit(mkStep('error', `${ENGINE_LABELS[this.engine]} budget is nearly spent, holding it for higher-stakes alarms`, t0, {
+    if (!worthTheBudget(ctx.event.type)) {
+      const pressured = provider.underPressure?.() ?? false;
+      emit(mkStep('error', pressured
+        ? `${ENGINE_LABELS[this.engine]} budget is nearly spent, holding it for higher-stakes alarms`
+        : `Routine alarm, handled by the deterministic Reasoner`, t0, {
         detail:
           `This is a ${ctx.event.type.replace(/_/g, ' ')} alarm, which the local Reasoner handles on an `
-          + 'explicit expected-cost policy. The remaining hosted-model budget in this window is reserved '
-          + 'for life-safety and high-severity alarms, where being wrong is expensive.',
+          + 'explicit expected-cost policy. The hosted-model budget is reserved for life-safety and '
+          + `high-severity alarms, where being wrong is expensive${pressured ? ', and the window is nearly spent besides.' : '.'}`,
       }));
       return this.viaFallback(ctx, trace, t0);
     }
@@ -201,7 +170,6 @@ export class LlmAgent implements DispatchAgent {
 
         if (res.refused) throw new Error('Model declined the request.');
 
-        // Surface reasoning before anything else in the turn.
         for (const block of res.reasoning) {
           if (block.trim()) emit(mkStep('thinking', summarise(block), callStart, { detail: block }));
         }
@@ -220,7 +188,6 @@ export class LlmAgent implements DispatchAgent {
           break;
         }
 
-        // Execute every call, then hand back all results together.
         const results: LlmToolResult[] = [];
         for (const call of res.toolCalls) {
           const s0 = Date.now();

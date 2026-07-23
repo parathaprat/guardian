@@ -1,20 +1,7 @@
 /**
- * Plain language.
- *
- * The person on the console at 03:00 is a shift supervisor, not a statistician.
- * They should never have to decode `P(real)`, `β-accept`, or `suppress` to know
- * what the system just did and whether to let it stand.
- *
- * So the vocabulary is split in two, deliberately:
- *
- *   - The *operational* words live here and are what the console leads with,
- *     "Send a responder", "Almost certainly nothing", "8 in 10 past alarms here
- *     were real".
- *   - The *technical* words (action enums, weights, posteriors, tool calls) are
- *     still all present, one disclosure away, because a security director's
- *     engineer will absolutely want to audit them.
- *
- * Nothing here reformats data the operator needs to act on, it only renames it.
+ * Plain-language vocabulary for the console. Operational words live here for a
+ * shift supervisor to read at a glance; the technical fields (action enums,
+ * weights, posteriors) stay available one disclosure away for anyone auditing them.
  */
 
 import type {
@@ -44,16 +31,15 @@ export const ACTION_SHORT: Record<AgentActionKind, string> = {
 export const ACTION_MEANS: Record<AgentActionKind, string> = {
   dispatch: 'A responder is on the way to the zone.',
   escalate: 'Supervisor notified and a responder committed. This sits at the top of the queue.',
-  monitor: 'Nobody has been sent. Sentry is holding this open and watching for a second signal.',
-  suppress: 'Closed without sending anyone. Sentry has learned this pattern here is usually nothing.',
+  monitor: 'Nobody has been sent. Guardian is holding this open and watching for a second signal.',
+  suppress: 'Closed without sending anyone. Guardian has learned this pattern here is usually nothing.',
 };
 
 // ── How sure the agent is ───────────────────────────────────────────────────
 
 /**
- * A probability, in words. The bands are wide on purpose: a five-band scale is
- * the most a human reads reliably at a glance, and the exact number is right
- * next to it for anyone who wants it.
+ * A probability, in words. Bands are wide on purpose, a five-band scale reads
+ * reliably at a glance; the exact number sits right next to it.
  */
 export function likelihoodWord(pReal: number): string {
   if (!Number.isFinite(pReal)) return 'Unknown';
@@ -67,11 +53,11 @@ export function likelihoodWord(pReal: number): string {
 /** Agreement / disagreement between the device and the agent, as a sentence. */
 export function beliefGapNote(sensor: number, agent: number): string {
   const gap = agent - sensor;
-  if (Math.abs(gap) < 0.08) return 'Sentry agrees with the device on this one.';
+  if (Math.abs(gap) < 0.08) return 'Guardian agrees with the device on this one.';
   const pts = Math.round(Math.abs(gap) * 100);
   return gap < 0
-    ? `Sentry trusts this ${pts} points less than the device claims. Past alarms here mostly came to nothing.`
-    : `Sentry trusts this ${pts} points more than the device claims. The history here says take it seriously.`;
+    ? `Guardian trusts this ${pts} points less than the device claims. Past alarms here mostly came to nothing.`
+    : `Guardian trusts this ${pts} points more than the device claims. The history here says take it seriously.`;
 }
 
 // ── Where and what ──────────────────────────────────────────────────────────

@@ -1,24 +1,8 @@
 /**
- * The vendor seam.
- *
- * SENTRY's judgment layer is an agentic loop over six evidence tools and one
- * terminal tool. None of that is vendor-specific, so none of it lives in a
- * vendor file. This module defines the smallest interface that a hosted model
- * has to satisfy to drive that loop, and `loop.ts` runs the loop against it.
- *
- * Why the seam exists at all, given there is one provider behind it today:
- *
- *   1. The trace inspector is the product. Whatever answers has to surface its
- *      reasoning and its tool round-trips in the same `TraceStep` shape, or the
- *      console silently degrades depending on what is in `.env`.
- *   2. The local Reasoner and the hosted model must be swappable without the
- *      eval noticing. Holding the judgment layer constant while varying only
- *      memory is the entire basis of the learning claim, and that only works if
- *      the two are interchangeable at a real interface.
- *
- * A provider owns its own conversation history rather than exposing a message
- * array, because message formats differ in ways no lowest common denominator
- * survives, and that detail should not leak into the loop.
+ * The vendor seam: the smallest interface a hosted model must satisfy to drive
+ * the agentic loop in `loop.ts`. Keeps the local Reasoner and hosted model
+ * interchangeable (see DECISIONS.md) and keeps provider-specific message
+ * formats out of the loop.
  */
 
 import type { LlmEngineKind } from '../../shared/types';
@@ -71,21 +55,17 @@ export interface LlmProvider {
   readonly model: string;
   readonly effort: string;
   /**
-   * True when the account is close enough to a rate limit that the next few
-   * calls are not all going to land. The loop uses this to spend what is left on
-   * the incidents that actually need judgment instead of on nuisance alarms the
-   * local policy already handles correctly.
-   *
-   * Optional: an endpoint that reports no rate-limit headers never registers
-   * pressure, and nothing else changes.
+   * True when close to a rate limit; the loop spends what's left on incidents
+   * that need judgment rather than nuisance alarms. Optional: providers
+   * without rate-limit headers never report pressure.
    */
   underPressure?(): boolean;
   /** Start a dispatch conversation. `tools` order is frozen for cache stability. */
   session(system: string, user: string, tools: ToolDef[]): LlmSession;
   /**
    * One-shot call constrained to a JSON schema, used by the reflection pass.
-   * Returns the parsed object; throws on transport or parse failure so the
-   * caller can fall back to the statistical pass.
+   * Throws on transport or parse failure so the caller can fall back to the
+   * statistical pass.
    */
   json(system: string, user: string, schema: Record<string, unknown>): Promise<unknown>;
 }

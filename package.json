@@ -1,9 +1,9 @@
 {
-  "name": "calvis-sentry",
+  "name": "guardain",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "SENTRY, an AI dispatch agent for physical security operations. Built for Calvis.",
+  "description": "guard[ai]n, an AI dispatch agent for physical security operations. Built for Calvis.",
   "engines": {
     "node": ">=20"
   },
@@ -16,24 +16,33 @@
     "typecheck": "tsc --noEmit",
     "eval": "tsx src/server/eval/cli.ts",
     "verify": "npm run typecheck && npm run eval -- --seeds 20 --events 400 --assert",
-    "experiment": "tsx src/server/eval/cli.ts --seeds 20 --events 400"
+    "experiment": "tsx src/server/eval/cli.ts --seeds 20 --events 400",
+    "dev:api": "tsx watch --clear-screen=false src/server/api-main.ts",
+    "dev:worker": "tsx watch --clear-screen=false src/server/worker-main.ts",
+    "start:api": "tsx src/server/api-main.ts",
+    "start:worker": "tsx src/server/worker-main.ts",
+    "stack": "docker compose up --build",
+    "stack:down": "docker compose down -v"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "ioredis": "^5.11.1",
+    "pg": "^8.22.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "tsx": "^4.23.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/node": "^24.9.2",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.4",
     "concurrently": "^9.2.1",
-    "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vite": "^7.1.9"
   }

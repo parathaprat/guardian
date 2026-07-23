@@ -292,22 +292,107 @@ a single-hue ramp. The derivation, including the candidates that failed, is in
 `docs/PALETTE.md`. Monochrome brands are where charts usually fall apart, and I'd
 rather show the working than assert good taste.
 
-## Decision 6: Boring infrastructure
+## Decision 6: Boring infrastructure, where it counts
 
-One `npm install`, no database, no Docker, no external services, no native modules.
-Event-sourced JSONL, a ~120-line store on `useSyncExternalStore`, hand-rolled SVG
-charts, and no model SDK. The entire dependency list is Express, React and Vite.
+One `npm install`, no database, no Docker, no external services, no native modules,
+to run and evaluate this. Event-sourced JSONL for the audit ledger, a ~120-line store
+on `useSyncExternalStore`, hand-rolled SVG charts, no model SDK. `npm run dev` and
+`npm run verify` still hit exactly that path today, nothing below changes it.
 
 Reviewers who cannot run something do not evaluate it. That is worth more than any
-architectural elegance I could have bought with a heavier stack.
+architectural elegance I could have bought with a heavier stack, and it is why the
+deployable shape in Decision 8 is layered on top of this rather than replacing it:
+the same interface that makes persistence optional is what keeps `npm run verify`
+free of a network call.
+
+## Decision 7: Put the model where a person decides, not where an alarm fires
+
+The obvious way to spend a second LLM investment is more of it on the alarm path,
+bigger context, multi-turn reasoning per event. That is also the worst place to
+spend it: highest volume, tightest latency, most audited, exactly where Decision 2
+argues judgment should stay cheap and swappable.
+
+So it went somewhere the volume is bounded by a person instead of by the world:
+three features, each triggered by an operator, never by an alarm.
+
+- **Radio intake** turns a guard's own words into a dispatch. It is the one surface
+  in this codebase where removing the model removes the feature rather than
+  degrading it, every other fallback here is a real second opinion, this one's is
+  honest keyword matching that says so out loud. It resolves the place a caller
+  named against the real world, resolves "same door as last night" against the
+  ledger and cites it, and returns a question instead of a guess when the report
+  does not support one. A parse is a proposal; nothing is raised until a human
+  confirms it.
+- **Shift handover** is map-reduce over open work, changed beliefs and responder
+  models: three lenses run in parallel, a fourth ranks what they found. Any console
+  can print "23 incidents, 4 open." The value is knowing which of the four will
+  ruin the incoming operator's night.
+- **Ask** is a real tool-using loop over the memory stores, for the ops manager who
+  is not going to read a Beta posterior. Every answer carries the lookups that
+  produced it, in the same trace inspector the dispatch console uses.
+
+Two rules hold across all three, enforced in code rather than asked for in a
+prompt: a citation that does not resolve against the real world or ledger is
+dropped before it reaches the UI, and refusal is a valid output, not a failure
+state.
+
+**The bug worth naming**, because it looked like something else. A caller saying
+"dock three" was once routed by a *back-reference* to a past incident there rather
+than by what the caller actually said, because the model weighted recall over the
+literal statement. What the caller states now outranks what the model infers, with
+the discrepancy surfaced as a question instead of resolved silently.
+
+## Decision 8: Made it deployable, without touching what makes it fast to evaluate
+
+The brief is an assessment, but Calvis asked for something that could plausibly
+ship, so the console became a five-service stack: Postgres with pgvector, Redis, a
+FastAPI embedding service, and a stateless API split from the one worker that owns
+the world. `docs/ARCHITECTURE.md` has the topology; this is why it is shaped that
+way.
+
+**The constraint that mattered most: `npm run verify` could not get slower.** It
+replays 20 worlds of 400 events in about two seconds specifically because the eval
+never opens a socket. Adding persistence without breaking that meant it had to go
+in behind an interface, `Repository`, with two implementations: an in-memory one
+that is the default and that the eval actually runs on, not a test double, and a
+Postgres one a live console opts into. `AgentContext.semantic` being optional
+follows the same logic, the pgvector reranking is additive, and its absence is
+exactly what the eval runs on.
+
+**Only one process may own the world.** The tick loop, the agent and the incident
+book all assume single-threaded mutation, so splitting API from worker meant
+deciding, explicitly, that `--scale api=3` is safe (stateless readers) and
+`--scale worker=2` is not (two simulators writing one database). There is no leader
+election; the deployment contract enforces the constraint by simply not scaling the
+worker, an honest limitation rather than a hidden one.
+
+**What building it surfaced was mostly about honesty under restart, not new
+features.** Persistence was originally bound to the moment an incident was
+created rather than to every mutation on it, so the database quietly stopped
+tracking an incident the instant it got a real decision, and a restart showed
+everything as still "triaging." The fix binds persistence to the same function
+that already emits the incident to the UI, so the set of changes worth showing an
+operator became structurally the same set as what survives a restart. Separately,
+a restart used to bring back every incident that was mid-decision when the process
+stopped, frozen there permanently, because an in-flight incident's hidden ground
+truth is deliberately never persisted (Decision 1), so it can never resolve. A
+restart now inherits what the agent learned plus the resolved history, sweeps what
+was interrupted, and resumes the clock from the newest thing actually on record
+rather than snapping back to day one.
+
+A restart discarding the previous operator's unfinished queue is a deliberate
+choice, not a limitation, and it is worth stating because it reads like data loss.
+The alternative, restoring incomplete machine decisions and calling them still in
+progress, is worse: it puts stale, un-resolvable work in front of a human and
+tells them it is live.
 
 ---
 
 ## What I deliberately did not build
 
-- **Auth, tenancy, RBAC.** Real for the product, noise for the assessment.
-- **Embedding-based retrieval.** Feature-weighted lexical similarity is enough at this
-  corpus size and adds no dependency. Embeddings are a swap, not a redesign.
+- **Auth, tenancy, RBAC.** Real for the product, noise for the assessment. The
+  schema carries `org_id` on every table so multi-tenancy is a query away rather
+  than a migration, but nothing enforces it yet.
 - **Fine-tuning / RLHF.** Wrong tool at this data volume. The Bayesian layer converges
   in tens of examples; a fine-tune needs thousands and would be far less inspectable.
 - **A real map / floorplan import.** The SVG site map is schematic on purpose, a real
@@ -317,10 +402,9 @@ architectural elegance I could have bought with a heavier stack.
 
 ## What I would build next, in order
 
-1. **Escalation chains and shift handover.** The current agent decides per event. Real
-   dispatch is a state machine over time, no acknowledgement in 90 seconds escalates
-   to the supervisor, then to the client contact, then to PD. Handover at shift change
-   is where incidents actually get dropped.
+1. **Escalation chains.** The current agent decides per event. Real dispatch is a
+   state machine over time: no acknowledgement in 90 seconds escalates to the
+   supervisor, then to the client contact, then to PD.
 2. **Cross-site transfer learning.** Right now every site learns alone. A hierarchical
    prior would let a newly onboarded site inherit the portfolio-level posterior for
    "loading dock motion at 03:00" and be useful on day one instead of week three. This

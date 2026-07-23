@@ -1,24 +1,6 @@
 /**
- * The first-run walkthrough.
- *
- * Written for a shift supervisor who has never seen the product and is not going
- * to read documentation. Seven steps, plain language, each one anchored to the
- * real control it describes rather than to a screenshot of it.
- *
- * Design constraints that shaped this:
- *
- *   - **It pauses the world.** A tour whose subject keeps moving is impossible to
- *     follow. The previous run state is captured on entry and restored on exit,
- *     so nobody is left with a stopped console wondering why.
- *   - **A missing anchor is not an error.** The console is live, so a step may
- *     refer to something that is not on screen yet (no incident selected, an
- *     empty queue). Those steps degrade to a centred card instead of pointing at
- *     nothing, and the copy still makes sense on its own.
- *   - **It owns the keyboard while open.** The console has single-key shortcuts,
- *     so the global map is suppressed for the duration; otherwise pressing the
- *     arrow keys to advance the tour would also walk the incident queue.
- *   - **It can always be dismissed and always be replayed.** Escape leaves,
- *     the header's help panel starts it again.
+ * The first-run walkthrough: plain-language steps, each anchored to the real
+ * control it describes. Pauses the world and owns the keyboard while open.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -38,10 +20,10 @@ export interface TourStep {
 
 export const TOUR_STEPS: TourStep[] = [
   {
-    title: 'This is Sentry',
+    title: 'This is guard[ai]n',
     body:
       'Alarms arrive here from every camera, door and patrol robot across three sites. '
-      + 'Sentry reads each one, decides what to do, and shows you why. Your job is to agree '
+      + 'Guardian reads each one, decides what to do, and shows you why. Your job is to agree '
       + 'with it or correct it. Takes about a minute to learn.',
     view: 'dispatch',
   },
@@ -59,7 +41,7 @@ export const TOUR_STEPS: TourStep[] = [
     anchor: 'queue',
     title: 'Your queue, most urgent first',
     body:
-      'Every alarm Sentry has picked up. "Needs you" is the short list: it committed a '
+      'Every alarm Guardian has picked up. "Needs you" is the short list: it committed a '
       + 'responder, or called it top priority, and nobody has signed off yet. A quiet alarm '
       + 'it closed on its own never reaches you. That is the point.',
     keys: [['↑ ↓', 'move through the queue']],
@@ -75,9 +57,9 @@ export const TOUR_STEPS: TourStep[] = [
     anchor: 'belief',
     title: 'The number that matters',
     body:
-      'On the left, how confident the device itself was. On the right, what Sentry believes '
+      'On the left, how confident the device itself was. On the right, what Guardian believes '
       + 'after checking what has actually happened at this spot at this hour. When those two '
-      + 'disagree, the right one is usually Sentry, because the device has no memory and it does.',
+      + 'disagree, the right one is usually Guardian, because the device has no memory and it does.',
   },
   {
     anchor: 'evidence',
@@ -93,18 +75,28 @@ export const TOUR_STEPS: TourStep[] = [
     title: 'Agree, or correct it',
     body:
       'Looks right confirms the call. Change it lets you override, and the override is carried '
-      + 'out for real, not just logged. Sentry learns from both, and it weighs your corrections '
+      + 'out for real, not just logged. Guardian learns from both, and it weighs your corrections '
       + 'more heavily than anything else it sees.',
     keys: [['Enter', 'looks right'], ['O', 'change it']],
   },
   {
-    anchor: 'nav',
-    title: 'Two more screens, when you want them',
+    anchor: 'map',
+    title: 'Not every call arrives as an alarm',
     body:
-      'Memory shows everything the agent has learned, as a graph that grows with every '
-      + 'resolved alarm, plus the written policy it drafts for you to approve. Evals is the '
-      + 'proof that it is genuinely improving and not just moving numbers around.',
-    keys: [['1 - 4', 'switch screens'], ['?', 'all shortcuts']],
+      'Most of what a real control room hears is a guard on the radio, in their own words. '
+      + 'Radio call turns that into a dispatch: it resolves the place they named, looks up any '
+      + 'incident they referred back to, and asks you a question rather than guessing. Nothing is '
+      + 'raised until you confirm it.',
+  },
+  {
+    anchor: 'nav',
+    title: 'The rest of the console',
+    body:
+      'Briefing writes the shift handover, ranked by what you have to act on first. Memory shows '
+      + 'everything the agent has learned and lets you question it in plain English. Evals is the '
+      + 'proof it is genuinely improving and not just moving numbers around. Roster is the crew, '
+      + 'scored on outcomes rather than on their file.',
+    keys: [['1 - 5', 'switch screens'], ['?', 'all shortcuts']],
   },
 ];
 
@@ -150,8 +142,7 @@ export function Tour({ onClose, onGoView }: TourProps) {
     if (step.view) onGoView(step.view);
   }, [step.view, onGoView]);
 
-  // Anchors live inside scrolling panes and the layout settles a frame late, so
-  // measure on a rAF and then keep it current.
+  // Anchors sit inside scrolling panes and layout settles a frame late, so measure on a rAF.
   useLayoutEffect(() => {
     let raf = 0;
     const measure = () => {
@@ -180,8 +171,7 @@ export function Tour({ onClose, onGoView }: TourProps) {
     cardRef.current?.focus();
   }, [i]);
 
-  // The console binds single keys, so the tour takes the keyboard in capture
-  // phase and stops anything else from seeing it.
+  // Console binds single keys, so the tour captures the keydown phase to keep them dormant.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key;
@@ -203,8 +193,7 @@ export function Tour({ onClose, onGoView }: TourProps) {
 
   return (
     <div className="tour" role="dialog" aria-modal="true" aria-label="Getting started">
-      {/* Four panels leaving a hole, rather than an SVG mask: the cutout stays
-          crisp at any size and the highlighted control is never dimmed. */}
+      {/* Four panels leaving a hole, rather than an SVG mask, keeps the cutout crisp at any size. */}
       {rect ? (
         <>
           <div className="tour-scrim" style={{ top: 0, left: 0, right: 0, height: rect.top }} />
@@ -263,11 +252,7 @@ export function Tour({ onClose, onGoView }: TourProps) {
   );
 }
 
-/**
- * Put the card beside the spotlight without letting it fall off screen. Below
- * the anchor when there is room, above when there is not, centred when there is
- * no anchor at all.
- */
+/** Place the card beside the spotlight without letting it fall off screen. */
 function placeCard(rect: Rect | null): React.CSSProperties {
   const W = 380;
   const H = 300;

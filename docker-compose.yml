@@ -1,0 +1,110 @@
+# guard[ai]n, the whole stack.
+#
+#   docker compose up --build
+#   open http://localhost:8787
+#
+# Four services and the split between them is the point:
+#
+#   postgres   durable state, plus pgvector for semantic precedent
+#   redis      fan-out, so any api replica can serve the SSE stream
+#   api        stateless. HTTP, SSE, and the read-only language surfaces
+#   worker     stateful. Owns the sim clock and the dispatch decisions
+#   embed      FastAPI. Owns text embeddings, which is the one job Python
+#              genuinely does better than the rest of this codebase
+#
+# Only the worker ticks. That is what makes `api` safe to scale: run three
+# replicas and you get three readers of one world, not three worlds.
+
+name: guardain
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: guardain
+      POSTGRES_PASSWORD: guardain
+      POSTGRES_DB: guardain
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guardain -d guardain"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  embed:
+    build:
+      context: ./services/embed
+    environment:
+      EMBED_MODEL: sentence-transformers/all-MiniLM-L6-v2
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      # The model downloads on first boot, which can take a couple of minutes.
+      start_period: 240s
+      retries: 30
+
+  api:
+    build:
+      context: .
+    command: ["npx", "tsx", "src/server/api-main.ts"]
+    environment:
+      PORT: 8787
+      ROLE: api
+      DATABASE_URL: postgres://guardain:guardain@postgres:5432/guardain
+      REDIS_URL: redis://redis:6379
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GUARDAIN_INGEST_SECRET: ${GUARDAIN_INGEST_SECRET:-dev-secret-change-me}
+      SENTRY_SEED: ${SENTRY_SEED:-20260721}
+    ports:
+      - "8787:8787"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+    command: ["npx", "tsx", "src/server/worker-main.ts"]
+    # The image's default healthcheck asks for /api/health, which the worker
+    # does not serve. Its liveness is a Redis key it has to keep refreshing:
+    # that expires if the process wedges, which "is it running" would not catch.
+    healthcheck:
+      test: ["CMD", "node", "-e", "const R=require('ioredis');const r=new R(process.env.REDIS_URL);r.get('guardain:worker:alive').then(v=>{r.quit();process.exit(v?0:1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 4
+    environment:
+      ROLE: worker
+      DATABASE_URL: postgres://guardain:guardain@postgres:5432/guardain
+      REDIS_URL: redis://redis:6379
+      EMBED_URL: http://embed:8000
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      SENTRY_SEED: ${SENTRY_SEED:-20260721}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:

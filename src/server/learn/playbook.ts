@@ -1,12 +1,7 @@
 /**
- * CHANNEL C, the playbook.
- *
- * Versioned SOP rules. Rules arrive as proposals (from the reflection pass or
- * an operator), get promoted to `active` only on human approval, accrue live
- * precision stats, and are auto-retired when they stop paying rent.
- *
- * The two seed rules are deliberately mediocre: they are the inherited SOP the
- * system is supposed to be caught improving on.
+ * CHANNEL C, the playbook: versioned SOP rules. Proposals (from reflection or
+ * an operator) are promoted to `active` only on human approval, accrue live
+ * precision stats, and auto-retire when they stop paying rent.
  */
 
 import type {
@@ -126,12 +121,9 @@ function cloneRule(r: PlaybookRule): PlaybookRule {
 // ── seeds ───────────────────────────────────────────────────────────────────
 
 /**
- * Two intentionally bad inherited SOPs.
- *
- * SEED-1 over-dispatches (drives false-dispatch rate up until reflection
- * narrows it). SEED-2 over-suppresses daytime robot traffic and will swallow a
- * real package theft or loiter, which is what shows up as missed criticals.
- * Both exist so `autoRetire` and the reflection pass have something to bite on.
+ * Two intentionally bad inherited SOPs, so `autoRetire` and reflection have
+ * something to bite on: SEED-1 over-dispatches, SEED-2 over-suppresses daytime
+ * robot traffic and will swallow a real package theft or loiter.
  */
 export function seedRules(now: SimTime): PlaybookRule[] {
   const mk = (
@@ -359,5 +351,19 @@ export class Playbook implements PlaybookStore {
     // The inherited SOP is part of the world, not something we learned, a
     // memory wipe puts the mediocre rules back so the demo can rerun.
     for (const r of seedRules(this.seededAt)) this.byId.set(r.id, r);
+  }
+
+  /**
+   * Replace the written policy.
+   *
+   * Unlike `reset` this does *not* re-seed the inherited rules: a restored
+   * playbook already contains them, in whatever state reflection and the
+   * operator left them, and putting the originals back would silently revive
+   * rules a human had retired.
+   */
+  restore(rules: PlaybookRule[], proposals: PlaybookProposal[]): void {
+    this.byId.clear();
+    for (const r of rules) this.byId.set(r.id, { ...r });
+    this.proposals_ = proposals.map((p) => ({ ...p }));
   }
 }

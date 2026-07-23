@@ -1,11 +1,11 @@
 <div align="center">
 
-# SENTRY ■
+# guard[ai]n ■
 
 **An AI dispatch agent for physical security operations.**
 Watches the event stream, reasons about it, dispatches, and gets measurably better.
 
-Built for the Calvis technical assessment.
+**Live:** _deployed link goes here_
 
 </div>
 
@@ -15,267 +15,207 @@ Built for the Calvis technical assessment.
 
 ```bash
 npm install
-cp .env.example .env      # optional, see below
+cp .env.example .env      # optional, see .env.example for what each key does
 npm run dev
 ```
 
-Open **http://localhost:5173**.
-
-That's it. No database, no Docker, no external services.
-
-> ### It runs with no API key.
-> With no key set, SENTRY runs its **Reasoner** engine, a real expected-cost
-> decision policy, not a stub. Every feature works: the agent decides, the memory
-> learns, the playbook updates, the evals run.
->
-> Paste a key into `.env` and the judgment layer upgrades to a hosted model, and
-> the reflection agent starts authoring playbook rules in prose. The header pill
-> tells you which engine is live.
->
-> I made this choice deliberately: a reviewer who can't get a key still has to be
-> able to evaluate the work.
-
-### The judgment layer
-
-`GEMINI_API_KEY` runs it on **Gemini 3.1 Flash Lite**. Get a free key at
-[aistudio.google.com/apikey](https://aistudio.google.com/apikey): sign in with a
-Google account, click *Create API key*, paste it into `.env`. No billing details
-and no credit card.
-
-Gemini is reached through its OpenAI-compatible endpoint over plain `fetch`, so
-the judgment layer is one file and no SDK. Everything vendor-neutral (the tools,
-the prompt, the loop, the `TraceStep` format) lives behind a `LlmProvider`
-interface in [`provider.ts`](src/server/agent/provider.ts), which is what lets
-the eval hold the judgment engine constant and vary only memory.
-
-Measured on the running console, five minutes at 4x speed:
+## How it works
 
 ```
-11 of 11 decisions on the hosted model     0 fallbacks
-p50 1,726ms   p90 2,007ms                  ~4,970 tokens per decision
+EVENT              a camera, a door, a robot reports something
+   │
+   ▼
+EVIDENCE            what's this sensor's track record here? who's free
+                    and qualified? has this happened before? what does
+                    the SOP say?
+   │
+   ▼
+JUDGMENT            an expected-cost policy (or a hosted model, for the
+                    highest-severity alarms) weighs the evidence and
+                    decides
+   │
+   ▼
+ACTION              dispatch · escalate · monitor · suppress
+   │
+   ▼
+OUTCOME             did the guard accept? did it resolve? was the agent
+                    right? did the operator agree or override?
+   │
+   ▼
+MEMORY              every outcome folds back into four channels, so the
+                    next decision in that zone, for that alarm type, at
+                    that hour, is better informed
 ```
 
-### Running inside the free tier
+That last step is the whole point: this isn't "events → LLM → dashboard."
+The agent's decisions are graded against hidden ground truth the simulator
+generates but never shows it, so you can watch it be right, watch it be
+wrong, and watch it learn. See **[DECISIONS.md](DECISIONS.md)** for why that
+mattered more than anything else in this build, and
+**[docs/METRICS.md](docs/METRICS.md)** for exactly how "smarter" is measured
+and proven across 20 replayed worlds.
 
-The free tier meters **requests per day, per model**, and the allowance is not
-uniform. `gemini-3.6-flash` grants 20 a day, which this console spends in about a
-minute. Flash-lite is the tier Google actually gives away, and it is also three
-times faster on this workload, so the default is the cheap model on the merits
-rather than as a compromise.
+## Where the model is actually used
 
-Four things follow from a metered tier, all in the code rather than in a caveat:
+Four surfaces, each earning its place differently:
 
-- **One request per decision.** A multi-turn agentic loop re-sends the whole
-  prompt every turn, which triples the cost of a decision for no better answer.
-  So the six evidence tools run locally, their results go into the prompt, their
-  schemas come out of the request, and the model is asked once for the judgment.
-  The trace is identical; the agent just does not pick its own evidence.
-- **Ranked lists are truncated before they are sent.** The evidence block was 41%
-  of every request, most of it list tails nobody reads. Nothing is reworded, and
-  the count of what was dropped stays in the prompt.
-- **Budget-aware triage.** When the allowance is nearly spent, what is left goes
-  to life-safety and high-severity alarms. A robot-obstruction alert at 3am does
-  not need a large language model; a person-down does.
-- **Honest attribution.** Each incident records the engine that actually decided
-  it, so a rate-limited fallback is never disguised as a hosted decision.
+| Surface               | What it does                                             | When it runs                                                                                                | Falls back to                                     |
+| --------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **Dispatch judgment** | Decides action, priority and responder for an alarm      | Only life-safety and high-severity alarms; everything else is decided by the local Reasoner in milliseconds | The Reasoner (deterministic expected-cost policy) |
+| **Radio intake**      | Turns a guard's spoken report into a structured dispatch | Whenever someone hits **RADIO CALL**                                                                        | Honest keyword matching, and it says so           |
+| **Shift handover**    | Writes the outgoing operator's briefing note             | On request, once a shift                                                                                    | A plain priority ranking over open work           |
+| **Ask**               | Answers a plain-English question about the memory        | Whenever someone asks one, on the **MEMORY** page                                                           | Keyword routing to one store                      |
 
-When the daily quota does run out, the console stands down rather than retrying
-per alarm: decisions fall to the Reasoner in about 4ms with no wasted request,
-and the header states which quota was hit, what it is worth and when it resets.
-Nothing degrades except the judgment layer, and the Reasoner is a real policy.
+Two rules hold across all four: a citation that doesn't resolve against a
+real id is dropped before it reaches the screen, and **refusing to guess is
+a valid answer**, not a failure. Radio intake, for example, asks a follow-up
+question rather than dispatching to a zone it can't confidently place.
+
+Everything vendor-neutral sits behind one `LlmProvider` interface, so the
+eval can hold the judgment engine constant and prove the measured gain comes
+from memory, not from a model having a good day.
+
+## The pages
+
+**DISPATCH** — the live queue. Every incoming alarm lands here, ranked by
+priority, with the agent's full reasoning next to it: what the sensor
+claims, what Guardian actually believes (deliberately not the same number),
+which memories moved the call, and one-click confirm or override. This is
+where a shift is actually run. **RADIO CALL**, on the site map, takes a
+verbal report and turns it into a dispatch.
+
+**BRIEFING** — the shift handover note, written on request. One headline,
+then the items the incoming operator needs to act on first, each backed by
+the ids it was drawn from — click through to the original call on Dispatch.
+
+**MEMORY** — opens with **ASK**, a plain-English Q&A over everything the
+agent has learned, every answer shown with its receipts. Below it, the
+**knowledge graph**: a live picture of what the agent believes about each
+place and alarm type, nearly empty at first and filling in as outcomes
+resolve. Then the calibration heatmap and the **playbook** — the SOP the
+agent proposes changes to, which an operator approves or rejects per rule,
+as a diff.
+
+**EVALS** — the proof. A same-stream A/B/C replay (no memory vs. cold agent
+vs. trained agent), the 20-world confidence interval behind the headline
+claim, and a live learning curve as the console runs.
+
+**ROSTER** — guards and robots as learned assets, not configured ones: who
+the agent trusts, why, and whether it's still exploring or has settled.
+
+A **first-run walkthrough** covers all of this in nine short steps the first
+time you open the console. Replay it anytime from the `?` panel.
+
+## Keyboard shortcuts
+
+Built so the person actually running a shift never needs the mouse.
+
+| Key                | Action                                                  |
+| ------------------ | ------------------------------------------------------- |
+| `1`–`5`            | Switch pages: Dispatch, Briefing, Memory, Evals, Roster |
+| `↑`/`↓` or `j`/`k` | Move through the incident queue                         |
+| `Enter` or `a`     | Confirm the selected decision                           |
+| `o`                | Override the selected decision                          |
+| `e`                | Show/hide the agent's reasoning trace                   |
+| `f`                | Show/hide the raw event feed                            |
+| `space`            | Play / pause the world                                  |
+| `t`                | Switch light / dark theme                               |
+| `?`                | Show this list                                          |
+
+## How it gets smarter
+
+Four channels, updated only from outcomes that actually happened, never
+hand-configured:
+
+|       | Channel             | What it learns                                                                                                                       |
+| ----- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **A** | **Calibration**     | How often an alarm type at a given zone and hour turns out to be real — "this sensor has cried wolf 23 of 25 times at this hour"     |
+| **B** | **Responder model** | Which guard actually accepts and resolves well, balanced against exploring under-used guards rather than always picking the favorite |
+| **C** | **Playbook**        | SOP changes the agent drafts from recent outcomes, shown to an operator as a diff to approve or reject, rule by rule                 |
+| **D** | **Precedent**       | Similar past incidents, retrieved for context                                                                                        |
+
+Channel C is deliberate: physical security is an audited, liability-bearing
+domain, so nothing changes dispatch behaviour silently. The agent proposes
+a policy change in writing, with evidence; a human approves it.
+
+## Verifying the claim
 
 ```bash
 npm run verify            # typecheck + the learning claim across 20 worlds
-npm run experiment        # the same experiment, without the assertion
-npm run eval -- --seed 42 # a single world, all metrics side by side
-node scripts/smoke.mjs    # 45-check end-to-end test (needs the server running)
-npm run build && npm start
+npm run experiment        # the same experiment, without the pass/fail assertion
+npm run eval -- --seed 42 # one world, all metrics side by side
+node scripts/smoke.mjs    # 69-check end-to-end test (needs the server running)
 ```
 
----
-
-## The problem with the obvious build
-
-The brief asks for an agent that "gets smarter over time," and leaves *smarter* to
-the candidate. The path of least resistance is **events → LLM → priority score →
-dashboard**, with a "memory" that appends past examples to the prompt.
-
-That demo looks fine and proves nothing. Prompt-stuffing is unfalsifiable: you
-cannot tell whether the agent improved, whether the improvement came from learning
-or from the model having a good day, or whether it would survive a different event
-stream. An ops manager has exactly one question (*is it actually getting better,
-and how would I know?*) and that build cannot answer it.
-
-So I optimised for **falsifiability**. Everything else followed.
-
-## Three decisions that shaped everything
-
-**1 · The simulator holds ground truth the agent never sees.**
-Every event is generated with a hidden `EventTruth`: whether it was real, how
-severe, and why. It is consulted in exactly one function, for scoring, *after* the decision is
-locked. The console reveals it afterwards and grades the call, so you watch the
-agent be right and watch it be wrong. `scripts/smoke.mjs` asserts the containment
-by scanning the wire payload for leaks.
-
-**2 · Evidence assembly is split from judgment.**
-`evidence → judgment → action`. Evidence is deterministic and memory-driven;
-judgment is the LLM. This is what lets the eval hold the model constant and vary
-*only* memory, which isolates the learning contribution from the model's.
-It also makes the no-key mode possible, makes evals free and fast, and gives every
-decision an `EvidenceRef[]` citing which learned object moved it.
-
-**3 · "Smarter" is four numbers, and the claim carries an error bar.**
-Fewer wasted dispatches, fewer missed criticals, faster decisions, higher operator
-agreement. The harness replays an *identical seeded stream* through three arms.
-Because learning is online, a single run is a draw from a distribution, so the
-headline number comes from replaying the whole protocol across 20 independent
-worlds and reporting the interval. Full definitions and threats to validity:
-**[docs/METRICS.md](docs/METRICS.md)**.
-
-## How it learns
-
-Four channels, updated only from revealed outcomes, never configured.
-
-| | Channel | Mechanism |
-|---|---|---|
-| **A** | **Calibration** | Beta-Bernoulli posteriors over P(event is real) per site × zone × type × 3-hour bucket, with hierarchical backoff. Converges in tens of observations and is explainable to a non-technical operator: *"this sensor has cried wolf 23 of 25 times at this hour."* |
-| **B** | **Responder model** | Per-guard Beta posteriors on accept-rate and resolution quality plus running response-time stats. Selection uses **Thompson sampling**, so the agent explores under-observed guards instead of over-trusting the one it knows. The roster labels each choice *exploring* or *exploiting*. |
-| **C** | **Playbook** | A reflection agent reads recent outcomes (weighting operator overrides most heavily) and drafts changes to a versioned, human-readable SOP. The ops manager approves or rejects **per rule, as a diff**. Rules carry live precision stats and auto-retire when they decay. |
-| **D** | **Precedent** | Feature-weighted nearest-neighbour over resolved incidents. The weakest channel, and weighted accordingly. |
-
-**Channel C is the one I'd defend hardest.** Physical security is an audited,
-liability-bearing domain. A black box that silently changes its dispatch behaviour
-is unshippable there. A system that *proposes* policy in writing, with evidence,
-and logs who approved it, is one a director of security can actually adopt.
-
-It ships seeded with two deliberately **bad** inherited rules, so you can watch
-reflection correct a wrong policy rather than only write on a blank page.
-
-## What you're looking at
-
-**DISPATCH**: live ingest, the prioritised queue, and the agent's reasoning. The
-reasoning column is widest on purpose. Note the **sensor said / agent believes**
-contrast: the device's self-reported confidence is deliberately miscalibrated in
-this world, and watching the agent learn to discount it is the whole point. The
-evidence rail shows *which memory* moved the decision, with signed weights. When
-an incident resolves, ground truth is revealed with a right/wrong verdict.
-
-**MEMORY**: opens with the **knowledge graph**, which is the calibration memory
-drawn rather than tabulated. Sites and zones are the world Sentry was handed;
-every connection between a place and an alarm type was earned from an outcome it
-watched resolve, so it starts nearly empty and fills in as you watch. Edge colour
-is the learned P(real), edge weight is how many outcomes are behind it, and
-dashed edges are knowledge borrowed from site-wide history where a zone has none
-yet, which is the cold-start story made visible. Past a few dozen edges any
-force-directed graph is a hairball, so this one is built to be interrogated:
-hover or tab to any node and it isolates that neighbourhood and writes out, in a
-sentence, what the agent believes about that place or that alarm type. Click to
-pin it. Below it: the calibration heatmap and the playbook. Hit **RUN REFLECTION NOW** to make the agent draft
-policy changes, then approve them as a diff. **RESET MEMORY** wipes all four
-channels so you can watch the graph rebuild itself from nothing.
-
-**EVALS**: the A/B replay for one world, the **multi-world experiment** with its
-confidence interval, and the live learning curve on a sliding window. If the
-interval ever spans zero, the panel says the result is not established rather
-than quoting the best world.
-
-**ROSTER**: guards and robots as learned assets. Every number was learned; the
-simulator's hidden parameters are stripped server-side before the snapshot ships.
-
-**A walkthrough runs on first open.** Seven steps, plain language, each one
-spotlighting the real control it describes. It pauses the world while it runs
-(a tour whose subject keeps moving cannot be followed) and puts the run state
-back afterwards. Replay it any time from the `?` panel.
-
-**The console is built for the person on shift**, so it opens with the decision
-in plain words and the two buttons that matter. The technical surfaces (the raw
-ingest feed and the tool-call trace) stay complete but one keystroke away.
-Everything runs from the keyboard: `↑`/`↓` move the queue, `⏎` confirms, `o`
-overrides, `e` shows Sentry's working, `f` shows the raw feed, `1–4` switch view,
-`space` plays/pauses, `t` toggles theme, `?` lists the lot.
-
-### Things worth trying
-
-1. Let it run a minute at 64× (it starts at 4×, which is what the free tier
-   keeps up with; 64× is for filling the memory fast), then open **MEMORY**.
-   Dock D-3 overnight motion
-   will have learned itself into a nuisance pattern (there's an HVAC vent there;
-   the agent is not told).
-2. **Override** a decision on DISPATCH, then **RUN REFLECTION NOW**. Overrides are
-   the highest-weight training signal and reach the reflection agent directly.
-3. Click a zone on the site map to **inject** a `panic_button` and watch the
-   life-safety floor override the cost model.
-4. **RESET MEMORY**, then run an eval, then let it run and eval again.
-
-## Architecture
-
-```
-WORLD SIMULATOR (hidden ground truth)
-      │ SecurityEvent, truth stripped
-      ▼
-EVIDENCE ASSEMBLY  6 tools over 4 memory channels → EvidenceRef[]
-      ▼
-JUDGMENT           Gemini 2.5 Flash  ──or──  deterministic Reasoner
-                                             (no key required)
-      ▼
-ACTION             dispatch · escalate · monitor · suppress
-      ▼
-OUTCOME            truth revealed · responder accepted? · operator verdict?
-      └──────────────────► folded back into all four memory channels
-```
-
-Deeper notes in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**. Chart colour is
-computed rather than chosen. CVD separation, chroma floor and contrast were run
-through a validator, including the candidates that failed:
-**[docs/PALETTE.md](docs/PALETTE.md)**.
-
-## Design
-
-The aesthetic is Calvis's own, taken from the live site rather than approximated:
-**Metropolis** (the actual typeface, open-source under the OFL, vendored locally),
-`#0D0D0D` on `#F6F6F6`, `#EA5112` rationed to the active tab / P1 / one hero
-number per screen, zero border-radius, mono uppercase micro-labels at `.15em`.
-There's a dark ops theme too, selected step by step rather than flipped automatically.
-
-## Stack
-
-TypeScript end to end. Node + Express + SSE on the server; React 19 + Vite on the
-client. No database, because the domain *is* a log and replay is a first-class
-feature, so it uses append-only JSONL, no state library (~120 lines on `useSyncExternalStore`), no
-chart library (hand-rolled SVG, so the palette could be validated rather than
-inherited), and no model SDK (Gemini is one `fetch` against its
-OpenAI-compatible endpoint). Total dependency list: Express, React, Vite.
-
-## Verification
-
-`npm run verify` is the one to run. It typechecks, then replays the full protocol
-across 20 independently seeded worlds and **exits non-zero unless the entire 95%
-confidence interval sits above zero**:
+`npm run verify` exits non-zero unless the entire 95% confidence interval on
+the mean lift sits above zero. Current result:
 
 ```
 Worlds where learning won         20/20  (100%)
 Mean lift                         +9.24 points  (+17.0%)
-95% confidence interval           [7.93, 10.56]  sd 2.81
-Of which prior experience         +1.09 points  (learned - cold)
+95% confidence interval           [7.93, 10.56]
 ```
 
-Reproducible to the digit: seeds are derived from the base seed, so the whole
-experiment reruns identically. That did not hold at first, and the fix is
-documented in [docs/METRICS.md](docs/METRICS.md#reproducing).
+## Running the full stack
+
+`npm run dev` is one process, no infrastructure, and is the right way to
+work on this. The deployable shape is five services — Postgres, Redis, an
+embedding service, a stateless API, and one worker that owns the world:
+
+```bash
+docker compose up --build
+open http://localhost:8787
+```
+
+Nothing here is required to evaluate the product. See
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the topology and why it
+splits that way.
+
+## In production
 
 ```
-npm run typecheck      →  0 errors
-node scripts/smoke.mjs →  45/45 checks, including ground-truth containment
+ cameras · door/access sensors · robots · guard radios & phone-ins
+                          │  signed webhook / API
+                          ▼
+                 ┌─────────────────┐
+                 │   API  (N of)   │──── ops console (this UI)
+                 │   stateless     │
+                 └────────┬────────┘
+                          │ queue
+                          ▼
+                 ┌─────────────────┐        ┌────────────────┐
+                 │  Worker (1 of)  │───────▶│  LLM provider   │
+                 │  agent + memory │        │  (judgment only,│
+                 └───┬─────────┬───┘        │  high-severity) │
+                     │         │            └────────────────┘
+                     ▼         ▼
+               Postgres     guard mobile app
+               (durable)    (dispatch · accept · resolve)
 ```
 
-The learning claim is deliberately **not** asserted by the smoke test. A console
-eval trains its learned arm from live memory a few minutes old over 120 events,
-where beating a static table is close to a coin flip; asserting it there would be
-a test that fails for reasons unrelated to the code. The claim belongs where it
-is measurable, which is across many worlds.
+Same shapes as [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), pointed at the
+real world instead of the simulator: alarm panels and radios replace the
+generator, a guard's phone replaces the simulated accept/decline roll, and
+everything the API/worker split already buys (stateless scaling, one owner
+of the world, survives a restart) carries over unchanged.
+
+## Design
+
+The aesthetic is Calvis's own, taken from the live site: **Metropolis**
+(vendored locally, open-source under the OFL), `#0D0D0D` on `#F6F6F6`,
+`#EA5112` rationed to the active tab, P1, and one hero number per screen,
+zero border-radius. A dark ops theme sits alongside the light one. Chart
+color is computed and validated, not chosen — see
+**[docs/PALETTE.md](docs/PALETTE.md)**.
+
+## Stack
+
+TypeScript end to end. Node + Express + SSE on the server; React 19 + Vite
+on the client. No state library, no chart library, no model SDK — see
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for why.
 
 ---
 
-**My point of view (what I prioritised, what I deliberately skipped, what I'd
-build next, and what I'd want to be challenged on) is in
+**My point of view — what I prioritized, what I deliberately skipped, what
+I'd build next, and what I'd want to be challenged on — is in
 [DECISIONS.md](DECISIONS.md).**
