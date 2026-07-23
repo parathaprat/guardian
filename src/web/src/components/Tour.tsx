@@ -21,13 +21,8 @@ export interface TourStep {
 export const TOUR_STEPS: TourStep[] = [
   {
     title: 'This is guard[ai]n',
-    body: 'Alarms from every camera, door and patrol robot across three sites land here. Guardian triages each one and shows its reasoning. Confirm it, or correct it.',
+    body: 'Alarms from every camera, door and patrol robot across three sites land here, live. Guardian triages each one and shows its reasoning. Space pauses the sim anytime.',
     view: 'dispatch',
-  },
-  {
-    anchor: 'transport',
-    title: 'Runs at 4x speed',
-    body: 'This is a simulation, so the agent builds up experience fast. Space pauses and resumes. Nothing is lost while paused.',
     keys: [['Space', 'pause / resume']],
   },
   {
@@ -38,43 +33,22 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     anchor: 'verdict',
-    title: 'The decision',
-    body: 'Dispatch, escalate, keep watching, or stand down, plus what that means on the ground and the instruction sent out.',
-  },
-  {
-    anchor: 'belief',
-    title: 'Device vs. Guardian',
-    body: "Left is the sensor's own confidence. Right is what Guardian believes once it checks this spot's history. When they disagree, trust the right one.",
-  },
-  {
-    anchor: 'evidence',
-    title: 'Why',
-    body: 'What Guardian checked, ranked by influence. Right pushes toward responding, left toward standing down.',
+    title: 'What it decided, and why',
+    body: "The action Guardian chose, how confident it is against the raw sensor reading, and the evidence that swayed the call, all below.",
     keys: [['E', 'show the technical trace']],
   },
   {
     anchor: 'actions',
     title: 'Agree, or correct it',
-    body: 'Looks right confirms the call. Change it overrides it for real, not just on paper, and Guardian weighs your corrections heavily.',
+    body: 'Looks right confirms the call. Change it overrides it for real, not just on paper. Alarms also arrive as typed radio calls, top-right of the map.',
     keys: [['Enter', 'looks right'], ['O', 'change it']],
   },
   {
-    anchor: 'map',
-    title: 'Radio calls too',
-    body: "Not everything arrives as an alarm. Radio call turns a guard's spoken report into a dispatch. Nothing is raised until you confirm it.",
-  },
-  {
-    anchor: 'nav',
-    title: 'The rest of the console',
-    body: 'Briefing: the shift handover. Memory: what the agent has learned. Evals: proof it is actually improving. Roster: the crew, scored on outcomes.',
-    keys: [['1 - 5', 'switch screens'], ['?', 'all shortcuts']],
-  },
-  {
     anchor: 'transport',
-    title: 'Press play to start',
-    body: "Guardian is paused. Press play, or space, when you're ready.",
+    title: 'Ready',
+    body: "Briefing, Memory, Evals and Roster are the tabs on the left. Guardian is paused, press play, or space, when you're ready.",
     view: 'dispatch',
-    keys: [['Space', 'play']],
+    keys: [['1 - 5', 'switch screens'], ['Space', 'play']],
   },
 ];
 
