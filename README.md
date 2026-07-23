@@ -1,13 +1,9 @@
-<div align="center">
-
-# guard[ai]n ■
+# Guard[ai]n
 
 **An AI dispatch agent for physical security operations.**
 Watches the event stream, reasons about it, dispatches, and gets measurably better.
 
 **Live:** _deployed link goes here_
-
-</div>
 
 ---
 
