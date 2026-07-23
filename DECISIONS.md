@@ -288,9 +288,8 @@ nothing else.
 Chart color is **computed, not chosen**. Every scale was run through a palette
 validator for CVD separation, chroma floor, lightness band and contrast; the
 three-arm comparison turned out to be *ordinal* rather than categorical, so it takes
-a single-hue ramp. The derivation, including the candidates that failed, is in
-`docs/PALETTE.md`. Monochrome brands are where charts usually fall apart, and I'd
-rather show the working than assert good taste.
+a single-hue ramp. Monochrome brands are where charts usually fall apart, and I'd
+rather validate the palette than assert good taste.
 
 ## Decision 6: Boring infrastructure, where it counts
 

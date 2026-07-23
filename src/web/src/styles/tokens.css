@@ -6,8 +6,7 @@
 
    Chart scales are NOT hand-picked, every scale below was run through the
    dataviz palette validator (lightness band, chroma floor, CVD separation
-   under Machado 2009, normal-vision floor, surface contrast). Results are
-   recorded in docs/PALETTE.md.
+   under Machado 2009, normal-vision floor, surface contrast).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @font-face {

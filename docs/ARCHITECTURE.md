@@ -214,5 +214,4 @@ No Redux, no React Query, no chart library, no component kit. The store is ~120
 lines on `useSyncExternalStore`; the charts are hand-rolled SVG. The reason is the
 brand: an off-the-shelf chart library would have to be fought into Calvis's
 zero-radius, mono-label, hairline aesthetic, and the fight costs more than the
-charts. Hand-rolled SVG also let the palette be *validated* rather than inherited
-(see `PALETTE.md`).
+charts. Hand-rolled SVG also let the palette be *validated* rather than inherited.
