@@ -30,7 +30,7 @@ if (!bus) {
 
 const engine = new OpsEngine(Number.isFinite(SEED) ? SEED : 20260721);
 const repo = await openRepository();
-await engine.attach(repo);
+const shouldResume = await engine.attach(repo);
 
 // Semantic precedent needs both halves: somewhere to put vectors and something
 // to produce them. Either missing and it falls back to structured similarity.
@@ -55,9 +55,10 @@ console.log(`  engine   ${status.engine === 'reasoner' ? 'REASONER · local, det
 console.log(`  store    ${repo.kind === 'postgres' ? 'Postgres, durable' : 'in-memory, volatile'}`);
 console.log(`  semantic ${semanticNote}`);
 console.log(`  seed     ${SEED}`);
+console.log(`  state    ${shouldResume ? 'resumed, running' : 'paused, press play to start'}`);
 console.log('');
 
-engine.start();
+if (shouldResume) engine.start();
 
 let closing = false;
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {

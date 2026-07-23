@@ -32,7 +32,7 @@ const engine = new OpsEngine(Number.isFinite(SEED) ? SEED : 20260721);
 // Opened before routes are mounted: ingest needs it for idempotency, and this
 // avoids serving an empty world we're about to replace a moment later.
 const repo = await openRepository();
-await engine.attach(repo);
+const shouldResume = await engine.attach(repo);
 
 const app = express();
 
@@ -88,10 +88,11 @@ const server = app.listen(PORT, () => {
   console.log(`  engine   ${mode}`);
   console.log(`  store    ${repo.kind === 'postgres' ? 'Postgres, durable' : 'in-memory, volatile'}`);
   console.log(`  seed     ${SEED}`);
+  console.log(`  state    ${shouldResume ? 'resumed, running' : 'paused, press play to start'}`);
   if (status.note) console.log(`  note     ${status.note.split('.')[0]}.`);
   console.log('');
 
-  engine.start();
+  if (shouldResume) engine.start();
 });
 
 /**

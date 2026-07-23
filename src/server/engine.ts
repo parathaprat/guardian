@@ -108,8 +108,15 @@ export class OpsEngine {
     this.semantic = index;
   }
 
-  /** Attach a repository and restore whatever it holds for this seed. Called once at boot, before `start()`. */
-  async attach(repo: Repository): Promise<void> {
+  /**
+   * Attach a repository and restore whatever it holds for this seed. Called
+   * once at boot, before `start()`. Returns whether the world was actually
+   * ticking when it was last seen, so a cold start can stay paused instead of
+   * spending the hosted judgment layer's quota on nobody watching. On the
+   * in-memory store this is always false. Nothing survives a restart there,
+   * so every boot is a cold start.
+   */
+  async attach(repo: Repository): Promise<boolean> {
     this.repo = repo;
     this.runId = await repo.openRun(this.seed);
 
@@ -125,6 +132,8 @@ export class OpsEngine {
       this.persist(() => this.repo.saveControls(this.runId, this.controls(), engineStatus()));
     }, MEMORY_FLUSH_MS);
     this.flushTimer.unref?.();
+
+    return saved?.controls?.running === true;
   }
 
   /**
