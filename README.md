@@ -198,11 +198,7 @@ of the world, survives a restart) carries over unchanged.
 ## Stack
 
 TypeScript end to end. Node + Express + SSE on the server; React 19 + Vite
-on the client. No state library, no chart library, no model SDK, see
-**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for why.
+on the client. See
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ---
-
-**My point of view (what I prioritized, what I deliberately skipped, what
-I'd build next, and what I'd want to be challenged on) is in
-[DECISIONS.md](DECISIONS.md).**
