@@ -3,7 +3,8 @@
 **An AI dispatch agent for physical security operations.**
 Watches the event stream, reasons about it, dispatches, and gets measurably better.
 
-**Live:** _deployed link goes here_
+**Live:** [guardian-2hk2.onrender.com](https://guardian-2hk2.onrender.com/)
+_(free tier, spins down when idle; first load after a quiet period takes ~30-50s to wake up)_
 
 ---
 
