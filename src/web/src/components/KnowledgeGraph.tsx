@@ -416,17 +416,22 @@ export function KnowledgeGraph({ cells, world }: KnowledgeGraphProps) {
         <Stat value={graph.totalObservations} label="outcomes folded in" />
       </div>
 
-      <div className="kg-canvas" ref={boxRef}>
-        {graph.totalObservations === 0 ? (
-          <div className="kg-empty">
-            <span className="kg-empty-mark" aria-hidden />
-            <p>
-              Nothing learned yet. The sites and their zones are the world Guardian was given.
-              Every connection you are about to see was earned from an outcome it watched resolve.
-            </p>
-          </div>
-        ) : null}
+      {graph.totalObservations === 0 && (
+        /* A banner above the canvas, not an overlay on it: the skeleton is real
+           content (every site and zone Guardian was handed), and a centred
+           overlay landed squarely on whichever cluster the layout put in the
+           middle, merging its own text with node labels rather than explaining
+           past them. */
+        <div className="kg-note">
+          <span className="kg-note-mark" aria-hidden />
+          <p>
+            Nothing learned yet. The sites and their zones are the world Guardian was given.
+            Every connection you are about to see was earned from an outcome it watched resolve.
+          </p>
+        </div>
+      )}
 
+      <div className="kg-canvas" ref={boxRef}>
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className={`kg-svg${focus ? ' is-focused' : ''}`}

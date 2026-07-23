@@ -30,23 +30,28 @@
 
 .dispatch > .panel { border: none; min-height: 0; }
 .dispatch-right {
+  --map-resize-h: 7px;
   display: grid;
-  grid-template-rows: minmax(230px, 30%) minmax(0, 1fr);
-  gap: var(--hair);
+  grid-template-rows: minmax(230px, 30%) var(--map-resize-h) minmax(0, 1fr);
+  gap: 0 var(--hair);
   background: var(--line);
   min-height: 0;
   min-width: 0;
 }
 
-/* On a laptop the vertical budget is the scarce one and the call is what the
-   operator reads, so the plan gives up its share first. It keeps a hard floor:
-   below about 215px the zone nodes start colliding whatever we do to the mark
-   sizes, and a plan you cannot read is worse than a shorter one. */
+/* A fixed proportion crowds the moment a site has more zones or guards than
+   the seeded portfolio; `.map-resize` lets the operator pull it instead, and
+   the chosen height overrides this via an inline style. This is only ever the
+   starting point. On a laptop the vertical budget is the scarce one and the
+   call is what the operator reads, so the plan gives up its share first. It
+   keeps a hard floor: below about 215px the zone nodes start colliding
+   whatever we do to the mark sizes, and a plan you cannot read is worse than
+   a shorter one. */
 @media (max-height: 900px) {
-  .dispatch-right { grid-template-rows: minmax(215px, 29%) minmax(0, 1fr); }
+  .dispatch-right { grid-template-rows: minmax(215px, 29%) var(--map-resize-h) minmax(0, 1fr); }
 }
 @media (max-height: 720px) {
-  .dispatch-right { grid-template-rows: minmax(190px, 27%) minmax(0, 1fr); }
+  .dispatch-right { grid-template-rows: minmax(190px, 27%) var(--map-resize-h) minmax(0, 1fr); }
 }
 
 /* ── Feed ───────────────────────────────────────────────────────────────── */
@@ -470,6 +475,33 @@
   font-size: var(--fs-sm);
   color: var(--text-primary);
   width: 100%;
+}
+
+/* ── Map / call resize handle ───────────────────────────────────────────── */
+
+/* A real row in the grid, not an overlay: `background` alone reads as a
+   hairline seam until hovered, when it earns the accent to say it's a handle.
+   The hit area is taller than what's drawn, via the pseudo-element below,
+   because a 7px target is a mis-click waiting to happen. */
+.map-resize {
+  position: relative;
+  background: var(--line-strong);
+  cursor: row-resize;
+  touch-action: none;
+}
+.map-resize::before {
+  content: '';
+  position: absolute;
+  inset: -6px 0;
+}
+.map-resize:hover,
+.map-resize:active { background: var(--accent); }
+
+/* Below this `.dispatch-right` becomes a flex column of content-sized panes
+   (see the 1040px breakpoint further down), so there is no shared row to
+   drag between and the handle would just be dead weight sitting in the flow. */
+@media (max-width: 1040px) {
+  .map-resize { display: none; }
 }
 
 /* ── Map ────────────────────────────────────────────────────────────────── */

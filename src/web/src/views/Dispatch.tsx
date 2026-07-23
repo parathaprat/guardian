@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { RefObject } from 'react';
+import type { PointerEvent, ReactNode, RefObject } from 'react';
 import type {
   AgentActionKind, EventType, EvidenceRef, Incident, IntakeParse, Priority, SecurityEvent,
   TraceStep, WorldSnapshot,
@@ -140,10 +140,91 @@ export default function Dispatch({ overrideNonce }: { overrideNonce: number }) {
           ))}
       </Panel>
 
-      <div className="dispatch-right">
+      <ResizableRight>
         <SiteMap />
         <IncidentDetail incident={selected} overrideNonce={overrideNonce} />
-      </div>
+      </ResizableRight>
+    </div>
+  );
+}
+
+// ── Resizable map / call split ──────────────────────────────────────────────
+
+/** Below this the zone marks start colliding whatever the map does with its
+    own scaling; matches the CSS floor the fixed proportion used to enforce. */
+const MAP_MIN_PX = 190;
+/** Above this the call panel has nothing left to work with. */
+const MAP_MAX_FRACTION = 0.72;
+
+/**
+ * The map and the call used to split a fixed 30/70 no matter how many zones or
+ * guards were on screen, which reads fine on the seeded portfolio and crowds
+ * the moment a site has more of either. A drag handle lets whoever is looking
+ * at it decide, and the choice persists like every other console preference.
+ */
+function ResizableRight({ children }: { children: [ReactNode, ReactNode] }) {
+  const ui = useUi();
+  const rightRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ startY: number; startH: number } | null>(null);
+  /** The in-progress height, read directly rather than via `setLive`'s
+      updater on drop: reaching into another store's `setUi` from inside a
+      state updater callback runs it mid-render of this component. */
+  const liveRef = useRef<number | null>(null);
+  const [live, setLive] = useState<number | null>(null);
+
+  const rowsStyle = (px: number) => `${px}px var(--map-resize-h) minmax(0, 1fr)`;
+
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    const el = rightRef.current;
+    const mapEl = el?.querySelector<HTMLElement>('.dispatch-map');
+    if (!el || !mapEl) return;
+    drag.current = { startY: e.clientY, startH: mapEl.getBoundingClientRect().height };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    const el = rightRef.current;
+    if (!el) return;
+    const ceiling = el.getBoundingClientRect().height * MAP_MAX_FRACTION;
+    const next = Math.round(
+      Math.min(ceiling, Math.max(MAP_MIN_PX, drag.current.startH + (e.clientY - drag.current.startY))),
+    );
+    liveRef.current = next;
+    setLive(next);
+    el.style.gridTemplateRows = rowsStyle(next);
+  };
+
+  const endDrag = () => {
+    if (!drag.current) return;
+    drag.current = null;
+    if (liveRef.current !== null) setUi({ mapHeightPx: liveRef.current });
+    liveRef.current = null;
+    setLive(null);
+  };
+
+  const [first, second] = children;
+  return (
+    <div
+      ref={rightRef}
+      className="dispatch-right"
+      style={live !== null || ui.mapHeightPx !== null
+        ? { gridTemplateRows: rowsStyle(live ?? ui.mapHeightPx!) }
+        : undefined}
+    >
+      {first}
+      <div
+        className="map-resize"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize the site map"
+        title="Drag to resize the site map"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      />
+      {second}
     </div>
   );
 }

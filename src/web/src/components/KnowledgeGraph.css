@@ -45,23 +45,20 @@
 
 .kg-svg { width: 100%; height: 100%; display: block; }
 
-.kg-empty {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
+/* Normal flow, above the canvas, never over it: the skeleton it would have
+   overlapped is real content, not a blank backdrop to write on. */
+.kg-note {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
   gap: var(--s3);
-  text-align: center;
-  padding: var(--s6);
-  pointer-events: none;
+  padding: var(--s4) var(--s5);
+  background: var(--surface-sunken);
+  border-bottom: var(--hair) solid var(--line);
 }
-.kg-empty-mark { width: 10px; height: 10px; background: var(--accent); }
-.kg-empty p {
+.kg-note-mark { flex: none; width: 8px; height: 8px; margin-top: 5px; background: var(--accent); }
+.kg-note p {
   margin: 0;
-  max-width: 52ch;
+  max-width: 68ch;
   font-size: var(--fs-sm);
   line-height: 1.65;
   color: var(--text-secondary);

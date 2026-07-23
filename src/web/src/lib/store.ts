@@ -37,6 +37,9 @@ export interface UiPrefs {
   queueFilter: QueueFilter;
   /** True once the first-run walkthrough has been finished or skipped. */
   tourDone: boolean;
+  /** Site map height on DISPATCH, dragged by the operator. `null` means the
+      CSS default (a viewport-proportional split), not a fixed pixel value. */
+  mapHeightPx: number | null;
 }
 
 export interface Toast {
@@ -77,7 +80,9 @@ const UI_KEY = 'guardain.ui';
  * Opens on `open`, not `needs`: an empty first frame teaches the operator the
  * console might be broken, and "everything live" always has something in it.
  */
-const DEFAULT_UI: UiPrefs = { ingestOpen: false, workOpen: false, queueFilter: 'open', tourDone: false };
+const DEFAULT_UI: UiPrefs = {
+  ingestOpen: false, workOpen: false, queueFilter: 'open', tourDone: false, mapHeightPx: null,
+};
 const NO_IDS: readonly string[] = [];
 
 // Stable fallbacks so selectors never allocate on the null-snapshot path.
@@ -407,6 +412,7 @@ function initialUi(): UiPrefs {
           ? p.queueFilter
           : DEFAULT_UI.queueFilter,
       tourDone: typeof p.tourDone === 'boolean' ? p.tourDone : DEFAULT_UI.tourDone,
+      mapHeightPx: typeof p.mapHeightPx === 'number' ? p.mapHeightPx : DEFAULT_UI.mapHeightPx,
     };
   } catch {
     // Corrupt or unavailable storage must never cost the operator the console.
@@ -419,7 +425,8 @@ export function setUi(patch: Partial<UiPrefs>): void {
   if (ui.ingestOpen === state.ui.ingestOpen
     && ui.workOpen === state.ui.workOpen
     && ui.queueFilter === state.ui.queueFilter
-    && ui.tourDone === state.ui.tourDone) return;
+    && ui.tourDone === state.ui.tourDone
+    && ui.mapHeightPx === state.ui.mapHeightPx) return;
   setState({ ui });
   try {
     localStorage.setItem(UI_KEY, JSON.stringify(ui));
