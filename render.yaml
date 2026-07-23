@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: guardian
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.1-flash-lite
+      - key: SENTRY_EVIDENCE
+        value: oneshot
+      - key: SENTRY_EFFORT
+        value: low

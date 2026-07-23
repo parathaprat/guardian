@@ -15,6 +15,14 @@ cp .env.example .env      # optional, see .env.example for what each key does
 npm run dev
 ```
 
+### Deploy your own
+
+`npm run build && npm start` serves the API and the built console from one
+process, and runs entirely in memory with no `DATABASE_URL` set, so a single
+free Node web service is enough. On [Render](https://render.com): **New +**
+→ **Blueprint** → point it at this repo, it reads `render.yaml`, and it asks
+for one secret, `GEMINI_API_KEY`.
+
 ## How it works
 
 ```
