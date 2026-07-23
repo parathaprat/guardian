@@ -29,10 +29,10 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     anchor: 'transport',
-    title: 'The world is running fast',
+    title: 'The world runs fast, once started',
     body:
-      'This is a simulation running at 4 times real speed, so the agent builds up experience '
-      + 'in minutes instead of months. Press space to pause whenever you want to think, or '
+      'This is a simulation at 4 times real speed, so the agent builds up experience '
+      + 'in minutes instead of months. Press space to pause or resume whenever you want to think, or '
       + 'push it to 64x to grow the memory quickly. Nothing is lost when you pause: the queue '
       + 'holds until you come back.',
     keys: [['Space', 'pause and resume']],
@@ -97,6 +97,13 @@ export const TOUR_STEPS: TourStep[] = [
       + 'proof it is genuinely improving and not just moving numbers around. Roster is the crew, '
       + 'scored on outcomes rather than on their file.',
     keys: [['1 - 5', 'switch screens'], ['?', 'all shortcuts']],
+  },
+  {
+    anchor: 'transport',
+    title: 'Press play to start',
+    body: 'Guardian is paused, so nothing runs until you say so. Hit play, or press space, whenever you are ready.',
+    view: 'dispatch',
+    keys: [['Space', 'play']],
   },
 ];
 
