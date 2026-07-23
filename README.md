@@ -77,30 +77,31 @@ from memory, not from a model having a good day.
 
 ## The pages
 
-**DISPATCH** — the live queue. Every incoming alarm lands here, ranked by
+**DISPATCH**: the live queue. Every incoming alarm lands here, ranked by
 priority, with the agent's full reasoning next to it: what the sensor
 claims, what Guardian actually believes (deliberately not the same number),
 which memories moved the call, and one-click confirm or override. This is
 where a shift is actually run. **RADIO CALL**, on the site map, takes a
 verbal report and turns it into a dispatch.
 
-**BRIEFING** — the shift handover note, written on request. One headline,
+**BRIEFING**: the shift handover note, written on request. One headline,
 then the items the incoming operator needs to act on first, each backed by
-the ids it was drawn from — click through to the original call on Dispatch.
+the ids it was drawn from, and citations click straight through to the
+original call on Dispatch.
 
-**MEMORY** — opens with **ASK**, a plain-English Q&A over everything the
+**MEMORY**: opens with **ASK**, a plain-English Q&A over everything the
 agent has learned, every answer shown with its receipts. Below it, the
 **knowledge graph**: a live picture of what the agent believes about each
 place and alarm type, nearly empty at first and filling in as outcomes
-resolve. Then the calibration heatmap and the **playbook** — the SOP the
+resolve. Then the calibration heatmap and the **playbook**, the SOP the
 agent proposes changes to, which an operator approves or rejects per rule,
 as a diff.
 
-**EVALS** — the proof. A same-stream A/B/C replay (no memory vs. cold agent
+**EVALS**: the proof. A same-stream A/B/C replay (no memory vs. cold agent
 vs. trained agent), the 20-world confidence interval behind the headline
 claim, and a live learning curve as the console runs.
 
-**ROSTER** — guards and robots as learned assets, not configured ones: who
+**ROSTER**: guards and robots as learned assets, not configured ones. Who
 the agent trusts, why, and whether it's still exploring or has settled.
 
 A **first-run walkthrough** covers all of this in nine short steps the first
@@ -129,7 +130,7 @@ hand-configured:
 
 |       | Channel             | What it learns                                                                                                                       |
 | ----- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **A** | **Calibration**     | How often an alarm type at a given zone and hour turns out to be real — "this sensor has cried wolf 23 of 25 times at this hour"     |
+| **A** | **Calibration**     | How often an alarm type at a given zone and hour turns out to be real, e.g. "this sensor has cried wolf 23 of 25 times at this hour" |
 | **B** | **Responder model** | Which guard actually accepts and resolves well, balanced against exploring under-used guards rather than always picking the favorite |
 | **C** | **Playbook**        | SOP changes the agent drafts from recent outcomes, shown to an operator as a diff to approve or reject, rule by rule                 |
 | **D** | **Precedent**       | Similar past incidents, retrieved for context                                                                                        |
@@ -159,7 +160,7 @@ Mean lift                         +9.24 points  (+17.0%)
 ## Running the full stack
 
 `npm run dev` is one process, no infrastructure, and is the right way to
-work on this. The deployable shape is five services — Postgres, Redis, an
+work on this. The deployable shape is five services: Postgres, Redis, an
 embedding service, a stateless API, and one worker that owns the world:
 
 ```bash
@@ -173,24 +174,23 @@ splits that way.
 
 ## In production
 
-```
- cameras · door/access sensors · robots · guard radios & phone-ins
-                          │  signed webhook / API
-                          ▼
-                 ┌─────────────────┐
-                 │   API  (N of)   │──── ops console (this UI)
-                 │   stateless     │
-                 └────────┬────────┘
-                          │ queue
-                          ▼
-                 ┌─────────────────┐        ┌────────────────┐
-                 │  Worker (1 of)  │───────▶│  LLM provider   │
-                 │  agent + memory │        │  (judgment only,│
-                 └───┬─────────┬───┘        │  high-severity) │
-                     │         │            └────────────────┘
-                     ▼         ▼
-               Postgres     guard mobile app
-               (durable)    (dispatch · accept · resolve)
+```mermaid
+flowchart TB
+    subgraph SRC["Real-world sources"]
+        CAM(["Cameras & door sensors"])
+        ROBOT(["Patrol robots"])
+        RADIO(["Guard radio / phone-in"])
+    end
+
+    SRC -->|"signed webhook / API"| API["API service (N instances)<br/>stateless"]
+    API <--> CONSOLE["Ops console (this UI)"]
+    API --> QUEUE["Event queue"]
+
+    QUEUE --> WORKER["Worker (1 instance)<br/>agent + memory, owns the world"]
+
+    WORKER --> LLM[["LLM provider<br/>judgment only, high-severity"]]
+    WORKER --> DB[("Postgres<br/>durable state")]
+    WORKER --> GUARDAPP["Guard mobile app<br/>dispatch · accept · resolve"]
 ```
 
 Same shapes as [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), pointed at the
@@ -199,23 +199,14 @@ generator, a guard's phone replaces the simulated accept/decline roll, and
 everything the API/worker split already buys (stateless scaling, one owner
 of the world, survives a restart) carries over unchanged.
 
-## Design
-
-The aesthetic is Calvis's own, taken from the live site: **Metropolis**
-(vendored locally, open-source under the OFL), `#0D0D0D` on `#F6F6F6`,
-`#EA5112` rationed to the active tab, P1, and one hero number per screen,
-zero border-radius. A dark ops theme sits alongside the light one. Chart
-color is computed and validated, not chosen — see
-**[docs/PALETTE.md](docs/PALETTE.md)**.
-
 ## Stack
 
 TypeScript end to end. Node + Express + SSE on the server; React 19 + Vite
-on the client. No state library, no chart library, no model SDK — see
+on the client. No state library, no chart library, no model SDK, see
 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for why.
 
 ---
 
-**My point of view — what I prioritized, what I deliberately skipped, what
-I'd build next, and what I'd want to be challenged on — is in
+**My point of view (what I prioritized, what I deliberately skipped, what
+I'd build next, and what I'd want to be challenged on) is in
 [DECISIONS.md](DECISIONS.md).**
