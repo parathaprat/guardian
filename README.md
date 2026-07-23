@@ -108,7 +108,7 @@ claim, and a live learning curve as the console runs.
 **ROSTER**: guards and robots as learned assets, not configured ones. Who
 the agent trusts, why, and whether it's still exploring or has settled.
 
-A **first-run walkthrough** covers all of this in nine short steps the first
+A **first-run walkthrough** covers all of this in ten short steps the first
 time you open the console. Replay it anytime from the `?` panel.
 
 ## Keyboard shortcuts

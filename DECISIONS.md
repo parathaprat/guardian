@@ -154,7 +154,7 @@ claim to where it is measurable rather than weakening it until it passed.
 ### Two things added for the people who actually have to use it
 
 **A first-run walkthrough.** The target user is a shift supervisor who will never
-read a README. Seven steps, anchored to the real controls rather than to
+read a README. Ten steps, anchored to the real controls rather than to
 screenshots of them, in the language they already use. Three details make it work
 rather than annoy: it pauses the world for the duration and restores the previous
 run state on exit, a step whose anchor is missing degrades to a centred card
